@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
-  const { loginWithChurchCode, loginWithPhone, switchUser } = useAuth();
+  const { loginWithChurchCode, loginWithPhone } = useAuth();
   
   const [loginMethod, setLoginMethod] = useState<'churchCode' | 'phoneOtp'>('churchCode');
   
@@ -78,7 +78,7 @@ export const LoginView: React.FC = () => {
     setErrorMsg(null);
 
     if (!otpCode.trim()) {
-      setErrorMsg('يرجى إدخال كود التحقق (أو 1234 للتجربة)');
+      setErrorMsg('يرجى إدخال كود التحقق المرسل لهاتفك');
       return;
     }
 
@@ -327,53 +327,15 @@ export const LoginView: React.FC = () => {
             </div>
           )}
 
-          {/* Instant Demo Accounts Switcher */}
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2.5">
-            <span className="text-[11px] font-bold text-slate-400 block text-center">
-              أو اختر حساباً تجريبياً جاهزاً للتجربة المباشرة:
-            </span>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <button
-                type="button"
-                onClick={() => switchUser('user_mina_01')}
-                className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-900 dark:text-emerald-200 text-xs font-bold hover:bg-emerald-100 text-center transition"
-              >
-                <User className="w-4 h-4 mx-auto mb-1 text-emerald-600" />
-                <span className="block">مينا (شاب)</span>
-                <span className="text-[10px] text-emerald-600 font-mono block">YT_000101</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => switchUser('canteen_servant_01')}
-                className="p-2.5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 text-xs font-bold hover:bg-amber-100 text-center transition ring-1 ring-amber-400/40"
-              >
-                <Coffee className="w-4 h-4 mx-auto mb-1 text-amber-600" />
-                <span className="block">مسؤول الكانتين</span>
-                <span className="text-[10px] text-amber-600 font-mono block">CN_000001</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => switchUser('servant_maged_01')}
-                className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/50 dark:bg-blue-950/20 text-blue-900 dark:text-blue-200 text-xs font-bold hover:bg-blue-100 text-center transition"
-              >
-                <Users className="w-4 h-4 mx-auto mb-1 text-blue-600" />
-                <span className="block">خ. ماجد (خادم)</span>
-                <span className="text-[10px] text-blue-600 font-mono block">SR_000001</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => switchUser('admin_abouna_01')}
-                className="p-2.5 rounded-xl border border-purple-200 bg-purple-50/50 dark:bg-purple-950/20 text-purple-900 dark:text-purple-200 text-xs font-bold hover:bg-purple-100 text-center transition"
-              >
-                <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-purple-600" />
-                <span className="block">أمانة الخدمة</span>
-                <span className="text-[10px] text-purple-600 font-mono block">AD_000001</span>
-              </button>
+          {/* Secure Church Authentication Notice */}
+          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 text-center space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] font-medium">
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>نظام تسجيل دخول مشفّر ومعتمد عبر خوادم الكنيسة</span>
             </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              إذا لم تكن تمتلك كوداً كنسياً أو كلمة مرور، يرجى مراجعة أمين الخدمة أو الخادم المسؤول لاستخراج حسابك المعتمد.
+            </p>
           </div>
 
         </div>

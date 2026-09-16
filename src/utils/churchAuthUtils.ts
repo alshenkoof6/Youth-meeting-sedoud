@@ -9,7 +9,7 @@ export function generateNextChurchCode(
   existingUsers: UserProfile[],
   churchPrefix = 'STMARY'
 ): string {
-  const isServantOrAdmin = role === 'servant' || role === 'admin' || role === 'supervisor';
+  const isServantOrAdmin = role === 'servant' || role === 'admin' || role === 'supervisor' || role === 'canteen_servant';
   const prefix = isServantOrAdmin ? 'SRV' : 'YT';
 
   // Find all existing numeric values for this role prefix

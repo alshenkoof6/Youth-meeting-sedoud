@@ -21,7 +21,10 @@ import {
   Settings,
   Flame,
   Coffee,
-  ScanLine
+  ScanLine,
+  CalendarDays,
+  Cake,
+  ShieldCheck
 } from 'lucide-react';
 
 interface NavigationProps {
@@ -85,17 +88,6 @@ export const Navigation: React.FC<NavigationProps> = ({
               );
             })}
           </div>
-
-          <div className="pt-4 mt-auto border-t border-slate-200 dark:border-slate-800">
-            <button
-              id="preview-youth-portal-btn"
-              onClick={() => setActiveView('youth-home')}
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-slate-200 text-slate-700 dark:border-slate-800 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold transition"
-            >
-              <Home className="w-3.5 h-3.5" />
-              <span>معاينة بوابة الشباب</span>
-            </button>
-          </div>
         </aside>
 
         {/* Mobile Horizontal Pill Bar for Canteen */}
@@ -125,7 +117,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   if (isYouth) {
     const navItems = [
       { id: 'youth-home', label: 'الرئيسية', icon: Home },
-      { id: 'youth-meetings', label: 'الاجتماعات', icon: Calendar },
+      { id: 'calendar', label: 'التقويم', icon: CalendarDays },
       { id: 'scan-trigger', label: 'حضور', icon: QrCode, isSpecial: true },
       { id: 'youth-activities', label: 'الأنشطة', icon: Compass },
       { id: 'youth-rewards', label: 'المكافآت', icon: Award },
@@ -186,18 +178,21 @@ export const Navigation: React.FC<NavigationProps> = ({
   // ADMIN & SERVANT SIDEBAR NAVIGATION
   const adminNavItems = [
     { id: 'admin-dashboard', label: 'لوحة المؤشرات', icon: LayoutDashboard },
+    { id: 'calendar', label: 'التقويم الموحد', icon: CalendarDays },
+    { id: 'birthdays', label: 'أعياد الميلاد', icon: Cake },
     { id: 'admin-youth', label: 'الشباب والمخدومين', icon: Users },
-    { id: 'admin-servants', label: 'الخدام وتوزيع الخدمة', icon: UserCheck },
+    ...((role === 'admin' || role === 'supervisor') ? [{ id: 'admin-servants', label: 'الخدام وتوزيع الخدمة', icon: UserCheck }] : []),
     { id: 'admin-meetings', label: 'الاجتماعات وكود العرض', icon: Calendar },
     { id: 'admin-attendance', label: 'سجل الحضور المباشر', icon: ClipboardCheck },
     { id: 'admin-followup', label: 'الافتقاد والغياب', icon: HeartHandshake, badge: 'مهم' },
     { id: 'admin-trips', label: 'الرحلات والحجوزات', icon: Bus },
     { id: 'admin-events', label: 'الأنشطة والأيام الروحية', icon: Sparkles },
     { id: 'admin-announcements', label: 'الإعلانات واللوحة', icon: Megaphone },
-    { id: 'admin-rewards', label: 'المكافآت والنقاط', icon: Gift },
+    ...((role === 'admin' || role === 'supervisor') ? [{ id: 'admin-rewards', label: 'المكافآت والنقاط', icon: Gift }] : []),
     { id: 'admin-feedback', label: 'تقييمات وآراء الشباب', icon: MessageSquare },
-    { id: 'admin-reports', label: 'التقارير وتصدير البيانات', icon: FileSpreadsheet },
-    ...(role === 'admin' ? [{ id: 'admin-settings', label: 'إعدادات وسجل التدقيق', icon: Settings }] : []),
+    ...((role === 'admin' || role === 'supervisor') ? [{ id: 'admin-reports', label: 'التقارير وتصدير البيانات', icon: FileSpreadsheet }] : []),
+    ...(role === 'admin' ? [{ id: 'audit-logs', label: 'سجل التدقيق والمحاسبة', icon: ShieldCheck }] : []),
+    ...(role === 'admin' ? [{ id: 'admin-settings', label: 'إعدادات النظام', icon: Settings }] : []),
   ];
 
   return (
@@ -244,18 +239,6 @@ export const Navigation: React.FC<NavigationProps> = ({
               </button>
             );
           })}
-        </div>
-
-        {/* Quick View as Youth button for servants/admins */}
-        <div className="pt-4 mt-auto border-t border-slate-200 dark:border-slate-800">
-          <button
-            id="preview-youth-portal-btn"
-            onClick={() => setActiveView('youth-home')}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-indigo-200 text-indigo-700 dark:border-indigo-800 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 text-xs font-semibold transition"
-          >
-            <Home className="w-3.5 h-3.5" />
-            <span>عرض بوابة الشباب (الموبايل)</span>
-          </button>
         </div>
       </aside>
 

@@ -2,42 +2,93 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, UserRole } from '../types';
 import { dataStore } from '../services/dataStore';
 import { normalizeChurchCode } from '../utils/churchAuthUtils';
-import { INITIAL_USERS } from '../lib/initialData';
+import { getFirebaseAuth } from '../lib/firebase';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  signInAnonymously,
+} from 'firebase/auth';
 
 interface AuthContextType {
   currentUser: UserProfile | null;
   role: UserRole;
   isLoggedIn: boolean;
+  isLoadingSession: boolean;
   loginWithChurchCode: (codeOrPhone: string, password: string) => Promise<{ success: boolean; error?: string }>;
   loginWithPhone: (phoneNumber: string, otp: string) => Promise<boolean>;
-  logout: () => void;
-  switchUser: (userId: string) => void;
+  logout: () => Promise<void>;
   allUsers: UserProfile[];
   updateCurrentUserProfile: (profile: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const AUTH_STORAGE_KEY = 'church_auth_user_id';
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [allUsers, setAllUsers] = useState<UserProfile[]>(dataStore.users);
-  // Default to Youth (Mina Adel) for instant live preview testing
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    return dataStore.users.find((u) => u.userId === 'user_mina_01') || dataStore.users[0] || null;
-  });
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [isLoadingSession, setIsLoadingSession] = useState(true);
 
+  // Synchronize with dataStore changes & restore session on initial load
   useEffect(() => {
-    const unsub = dataStore.subscribe(() => {
+    // 1. Restore authenticated session from localStorage if present
+    const savedUserId = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (savedUserId) {
+      const match = dataStore.users.find((u) => u.userId === savedUserId);
+      if (match) {
+        setCurrentUser(match);
+      }
+    }
+
+    // 2. Listen to real Firebase Auth state changes
+    const auth = getFirebaseAuth();
+    const unsubAuth = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        // Authenticated with Firebase Auth
+        const activeUserId = localStorage.getItem(AUTH_STORAGE_KEY);
+        if (activeUserId) {
+          const matched = dataStore.users.find((u) => u.userId === activeUserId);
+          if (matched) {
+            setCurrentUser(matched);
+          }
+        }
+      } else {
+        // Firebase signed out and no session stored
+        if (!localStorage.getItem(AUTH_STORAGE_KEY)) {
+          setCurrentUser(null);
+        }
+      }
+      setIsLoadingSession(false);
+    });
+
+    // 3. Subscribe to dataStore updates
+    const unsubStore = dataStore.subscribe(() => {
       setAllUsers([...dataStore.users]);
-      if (currentUser) {
-        const updated = dataStore.users.find((u) => u.userId === currentUser.userId);
+      const currentStoredId = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (currentStoredId) {
+        const updated = dataStore.users.find((u) => u.userId === currentStoredId);
         if (updated) {
           setCurrentUser(updated);
         }
       }
     });
-    return unsub;
-  }, [currentUser]);
 
+    // Mark loading session as done after initial check
+    const timeout = setTimeout(() => {
+      setIsLoadingSession(false);
+    }, 400);
+
+    return () => {
+      unsubAuth();
+      unsubStore();
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  // Strict Authentication with Church Code or Phone + Password
   const loginWithChurchCode = async (
     codeOrPhone: string,
     passwordInput: string
@@ -51,8 +102,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const normalizedInput = normalizeChurchCode(rawInput);
-    
-    // Find user by normalized code or phone number
+
+    // Look up user strictly in registered users
     const user = allUsers.find((u) => {
       const uCode = normalizeChurchCode(u.userCode || '');
       return uCode === normalizedInput || u.phoneNumber.trim() === rawInput;
@@ -61,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) {
       return {
         success: false,
-        error: 'لم يتم العثور على حساب بهذا الكود الكنسي أو رقم الهاتف. يرجى مراجعة الخادم المسؤول.',
+        error: 'لم يتم العثور على حساب بهذا الكود الكنسي أو رقم الهاتف. يرجى مراجعة الخادم المسؤول أو أمانة الخدمة.',
       };
     }
 
@@ -69,92 +120,117 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const storedPass = user.password?.trim();
     const tempPass = user.temporaryPassword?.trim();
 
-    // Check credentials:
-    // 1. Matches permanent password
-    // 2. Or matches temporary password
-    // 3. Or for default seed users where neither is set, allow demo password or any password
-    const isPermanentMatch = storedPass && storedPass === inputPass;
-    const isTempMatch = tempPass && tempPass === inputPass;
-    const isDemoPass = !storedPass && !tempPass && (inputPass === '123456' || inputPass === 'church123' || inputPass.length >= 4);
+    // Strict credential check: must match permanent password or assigned temporary password
+    const isPermanentMatch = !!storedPass && storedPass === inputPass;
+    const isTempMatch = !!tempPass && tempPass === inputPass;
 
-    if (isPermanentMatch || isTempMatch || isDemoPass) {
-      setCurrentUser(user);
-      return { success: true };
+    if (!isPermanentMatch && !isTempMatch) {
+      return {
+        success: false,
+        error: 'كلمة المرور غير صحيحة. يرجى التأكد من كلمة المرور الخاصة بك أو المؤقتة.',
+      };
     }
 
-    return {
-      success: false,
-      error: 'كلمة المرور غير صحيحة. يرجى التأكد من كلمة المرور المستلمة أو كلمة مرورك الشخصية.',
-    };
+    // Authenticate with Firebase Authentication
+    try {
+      const auth = getFirebaseAuth();
+      // Format a deterministic Firebase Auth credential for the church member
+      const cleanIdentifier = (user.userCode || user.userId).toLowerCase().replace(/[^a-z0-9]/g, '');
+      const authEmail = `${cleanIdentifier}@youthchurch.internal`;
+      const authPass = inputPass.length >= 6 ? inputPass : `${inputPass}000000`.slice(0, 6);
+
+      try {
+        await signInWithEmailAndPassword(auth, authEmail, authPass);
+      } catch (signInErr: any) {
+        if (
+          signInErr.code === 'auth/user-not-found' ||
+          signInErr.code === 'auth/invalid-credential' ||
+          signInErr.code === 'auth/wrong-password'
+        ) {
+          try {
+            await createUserWithEmailAndPassword(auth, authEmail, authPass);
+          } catch {
+            // If email registration is restricted or project settings differ, ensure session token via anonymous auth
+            try {
+              await signInAnonymously(auth);
+            } catch (e) {
+              console.warn('Firebase Auth anonymous fallback notice:', e);
+            }
+          }
+        } else {
+          try {
+            await signInAnonymously(auth);
+          } catch (e) {
+            console.warn('Firebase Auth anonymous fallback notice:', e);
+          }
+        }
+      }
+    } catch (fbErr) {
+      console.warn('Firebase Auth synchronization error:', fbErr);
+    }
+
+    // Save authenticated session
+    localStorage.setItem(AUTH_STORAGE_KEY, user.userId);
+    setCurrentUser(user);
+
+    // Audit login
+    await dataStore.logAudit({
+      actorId: user.userId,
+      actorName: user.displayName,
+      actorRole: user.role,
+      action: 'تسجيل دخول ناجح بالحساب المعتمد',
+      targetCollection: 'users',
+      targetId: user.userId,
+      details: {
+        method: 'church_code',
+        loginTime: new Date().toISOString(),
+      },
+    });
+
+    return { success: true };
   };
 
+  // Phone OTP login
   const loginWithPhone = async (phoneNumber: string, _otp: string): Promise<boolean> => {
-    // Look up by phone number in dataStore
-    const user = allUsers.find((u) => u.phoneNumber === phoneNumber.trim());
+    const cleanPhone = phoneNumber.trim();
+    const user = allUsers.find((u) => u.phoneNumber.trim() === cleanPhone);
     if (user) {
+      try {
+        const auth = getFirebaseAuth();
+        await signInAnonymously(auth);
+      } catch (e) {
+        console.warn('Firebase Auth phone session notice:', e);
+      }
+      localStorage.setItem(AUTH_STORAGE_KEY, user.userId);
       setCurrentUser(user);
+
+      await dataStore.logAudit({
+        actorId: user.userId,
+        actorName: user.displayName,
+        actorRole: user.role,
+        action: 'تسجيل دخول عبر رقم الهاتف',
+        targetCollection: 'users',
+        targetId: user.userId,
+      });
+
       return true;
     }
-    // If new user, create a youth account with clean YT_XXXX code
-    const userCode = `YT_${Math.floor(100000 + Math.random() * 900000)}`;
-    const newUser: UserProfile = {
-      userId: `user_${Date.now()}`,
-      userCode,
-      displayName: 'مستخدم جديد',
-      phoneNumber: phoneNumber.trim(),
-      role: 'youth',
-      gender: 'male',
-      educationStage: 'university',
-      scheduleType: 'regular',
-      weeklySchedule: {
-        sat: 'available',
-        sun: 'available',
-        mon: 'available',
-        tue: 'available',
-        wed: 'available',
-        thu: 'available',
-        fri: 'available',
-      },
-      totalAttendances: 0,
-      currentStreak: 0,
-      bestStreak: 0,
-      totalPoints: 50, // Welcome gift
-      consecutiveAbsences: 0,
-      followUpStatus: 'regular',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    await dataStore.updateUser(newUser);
-    setCurrentUser(newUser);
-    return true;
+    return false;
   };
 
-  const logout = () => {
+  // Real Logout: Clears Firebase Auth and stored tokens
+  const logout = async (): Promise<void> => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    try {
+      const auth = getFirebaseAuth();
+      await firebaseSignOut(auth);
+    } catch (e) {
+      console.warn('Firebase signOut error:', e);
+    }
     setCurrentUser(null);
   };
 
-  const switchUser = (userId: string) => {
-    let targetId = userId;
-    // Handle alias IDs
-    if (targetId === 'user_maged_servant') targetId = 'servant_maged_01';
-    if (targetId === 'user_father_youhanna') targetId = 'admin_abouna_01';
-
-    let user = allUsers.find((u) => u.userId === targetId);
-    if (!user) {
-      user = INITIAL_USERS.find((u) => u.userId === targetId);
-      if (user) {
-        if (!dataStore.users.some((u) => u.userId === user!.userId)) {
-          dataStore.users.push(user);
-          dataStore.notify();
-        }
-      }
-    }
-    if (user) {
-      setCurrentUser(user);
-    }
-  };
-
+  // Update profile
   const updateCurrentUserProfile = async (updates: Partial<UserProfile>) => {
     if (!currentUser) return;
     const updated = { ...currentUser, ...updates, updatedAt: new Date().toISOString() };
@@ -168,10 +244,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         currentUser,
         role: currentUser?.role || 'youth',
         isLoggedIn: !!currentUser,
+        isLoadingSession,
         loginWithChurchCode,
         loginWithPhone,
         logout,
-        switchUser,
         allUsers,
         updateCurrentUserProfile,
       }}

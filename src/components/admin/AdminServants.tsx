@@ -17,8 +17,9 @@ import { generateNextChurchCode, generateTemporaryPassword } from '../../utils/c
 import { AccountCreationSuccessModal } from './AccountCreationSuccessModal';
 
 export const AdminServants: React.FC = () => {
-  const { role } = useAuth();
-  const servants = dataStore.users.filter((u) => u.role === 'servant' || u.role === 'admin');
+  const { role, currentUser } = useAuth();
+  const isAdmin = role === 'admin' || role === 'supervisor';
+  const servants = dataStore.users.filter((u) => u.role === 'servant' || u.role === 'admin' || u.role === 'canteen_servant');
   const youthList = dataStore.users.filter((u) => u.role === 'youth');
 
   const [selectedServant, setSelectedServant] = useState<UserProfile | null>(null);
@@ -51,6 +52,10 @@ export const AdminServants: React.FC = () => {
 
   const handleCreateServant = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      alert('عذراً، صلاحية إضافة خادم جديد مخصصة لأمين الخدمة فقط.');
+      return;
+    }
     if (!newName.trim() || !newPhone.trim()) return;
 
     // Generate Church Code sequentially (e.g. SRV-00025) and strong random temporary password
@@ -89,6 +94,24 @@ export const AdminServants: React.FC = () => {
     };
 
     await dataStore.updateUser(newServant);
+
+    if (currentUser) {
+      await dataStore.logAudit({
+        actorId: currentUser.userId,
+        actorName: currentUser.displayName,
+        actorRole: role,
+        action: `إضافة خادم جديد في الخدمة: ${newName.trim()} (${newServantRole === 'admin' ? 'أمين خدمة' : newServantRole === 'canteen_servant' ? 'مسؤول كانتين' : 'خادم'})`,
+        targetCollection: 'users',
+        targetId: newServant.userId,
+        details: {
+          userCode,
+          servantName: newName.trim(),
+          role: newServantRole,
+          phoneNumber: newPhone.trim(),
+        },
+      });
+    }
+
     setShowAddModal(false);
     setNewName('');
     setNewPhone('');
@@ -120,13 +143,19 @@ export const AdminServants: React.FC = () => {
           <span className="px-3 py-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200">
             {servants.length} خدام وأمناء
           </span>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1.5 transition shadow-sm"
-          >
-            <Plus className="w-4 h-4" />
-            <span>إضافة خادم جديد</span>
-          </button>
+          {isAdmin ? (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold flex items-center gap-1.5 transition shadow-sm"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة خادم جديد</span>
+            </button>
+          ) : (
+            <span className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-medium border border-slate-200 dark:border-slate-700">
+              إضافة الخدام مقتصرة على أمين الخدمة
+            </span>
+          )}
         </div>
       </div>
 
@@ -147,6 +176,11 @@ export const AdminServants: React.FC = () => {
                     {item.servant.role === 'admin' && (
                       <span className="px-2 py-0.5 rounded-md bg-purple-100 text-purple-800 text-[10px] font-bold">
                         أمين خدمة
+                      </span>
+                    )}
+                    {item.servant.role === 'canteen_servant' && (
+                      <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold">
+                        مسؤول كانتين
                       </span>
                     )}
                   </div>
@@ -269,7 +303,7 @@ export const AdminServants: React.FC = () => {
       )}
 
       {/* ADD SERVANT MODAL */}
-      {showAddModal && (
+      {showAddModal && isAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 relative">
             <button
@@ -336,6 +370,7 @@ export const AdminServants: React.FC = () => {
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs focus:outline-none"
                   >
                     <option value="servant">خادم متابعة</option>
+                    <option value="canteen_servant">مسؤول كانتين</option>
                     <option value="admin">أمين خدمة / مسؤول</option>
                   </select>
                 </div>

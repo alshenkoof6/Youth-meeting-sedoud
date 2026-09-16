@@ -49,6 +49,9 @@ export interface Meeting {
   title: string;
   description: string;
   speaker?: string;
+  topic?: string;
+  notes?: string;
+  targetStages?: EducationStage[] | 'all';
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm
   endTime: string; // HH:mm
@@ -111,6 +114,11 @@ export interface Trip {
   time: string;
   meetingPoint: string;
   destinations: string[];
+  destination?: string;
+  returnDate?: string;
+  departureTime?: string;
+  returnTime?: string;
+  targetStages?: EducationStage[] | 'all';
   price: number;
   capacity: number;
   bookedSeatsCount: number;
@@ -150,6 +158,9 @@ export interface ChurchEvent {
   location: string;
   price: number;
   capacity?: number;
+  registeredCount?: number;
+  speaker?: string;
+  targetStages?: EducationStage[] | 'all';
   registrationRequired: boolean;
   registrationDeadline?: string;
   status: 'upcoming' | 'ongoing' | 'completed' | 'canceled';
@@ -289,12 +300,15 @@ export interface SystemSettings {
 
 export interface AuditLog {
   logId: string;
+  auditId?: string;
   actorId: string;
   actorName: string;
   actorRole: string;
   action: string;
-  targetCollection: string;
+  targetCollection?: string;
+  targetType?: string;
   targetId: string;
   timestamp: string;
-  details?: Record<string, any>;
+  details?: string | Record<string, any>;
+  metadata?: Record<string, any>;
 }

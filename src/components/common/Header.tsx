@@ -2,17 +2,18 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { 
   Church, 
-  UserCheck, 
   ShieldCheck, 
   LogOut, 
   User, 
   ChevronDown, 
   Flame, 
   Star, 
-  CheckCircle2,
-  Sparkles,
-  Coffee,
-  Users
+  CheckCircle2, 
+  Coffee, 
+  Users, 
+  IdCard, 
+  Phone,
+  LayoutDashboard
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -22,8 +23,51 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onOpenScan, activeView, setActiveView }) => {
-  const { currentUser, role, switchUser, allUsers, logout } = useAuth();
+  const { currentUser, role, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  const getRoleBadge = () => {
+    switch (role) {
+      case 'admin':
+        return {
+          title: 'أمانة الخدمة',
+          color: 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+          dot: 'bg-purple-500',
+          icon: ShieldCheck
+        };
+      case 'canteen_servant':
+        return {
+          title: 'مسؤول الكانتين',
+          color: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800',
+          dot: 'bg-amber-500',
+          icon: Coffee
+        };
+      case 'servant':
+        return {
+          title: 'خادم متابعة',
+          color: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+          dot: 'bg-blue-500',
+          icon: Users
+        };
+      case 'supervisor':
+        return {
+          title: 'مشرف قطاع',
+          color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800',
+          dot: 'bg-indigo-500',
+          icon: ShieldCheck
+        };
+      default:
+        return {
+          title: 'شاب',
+          color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+          dot: 'bg-emerald-500',
+          icon: User
+        };
+    }
+  };
+
+  const roleMeta = getRoleBadge();
+  const RoleIcon = roleMeta.icon;
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors">
@@ -38,12 +82,12 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScan, activeView, setActiv
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-bold text-lg text-slate-900 dark:text-white tracking-tight">اجتماع الشباب</span>
-                <span className="hidden sm:inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+                <span className="hidden sm:inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-medium">
                   <CheckCircle2 className="w-3 h-3" />
                   مباشر
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">منصة الحضور الذكي والافتقاد والتفاعل</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">منصة الحضور الذكي والافتقاد والكانتين</p>
             </div>
           </div>
 
@@ -62,218 +106,128 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScan, activeView, setActiv
             </div>
           )}
 
-          {/* Right Controls: User Switcher & Profile */}
+          {/* Right Controls: Authenticated User Profile Badge & Logout */}
           <div className="flex items-center gap-3">
             
-            {/* Quick Demo Role Switcher Dropdown */}
             <div className="relative">
               <button
-                id="role-switcher-button"
+                id="user-profile-button"
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition shadow-sm text-sm"
               >
-                <div className={`w-2.5 h-2.5 rounded-full ${
-                  role === 'admin' ? 'bg-purple-500' : role === 'canteen_servant' ? 'bg-amber-500' : role === 'servant' ? 'bg-blue-500' : 'bg-emerald-500'
-                }`} />
-                <span className="font-medium text-slate-800 dark:text-slate-200">
-                  {currentUser?.displayName || 'حساب تجريبي'}
+                <div className={`w-2.5 h-2.5 rounded-full ${roleMeta.dot}`} />
+                <span className="font-medium text-slate-800 dark:text-slate-200 max-w-[130px] truncate">
+                  {currentUser?.displayName || 'المستخدم'}
                 </span>
-                <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-                  {role === 'admin' ? 'أمانة الخدمة' : role === 'canteen_servant' ? 'خادم الكانتين' : role === 'servant' ? 'خادم' : 'شاب'}
+                <span className={`text-[11px] px-2 py-0.5 rounded-md border font-medium ${roleMeta.color}`}>
+                  {roleMeta.title}
                 </span>
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </button>
 
-              {/* Dropdown Menu */}
+              {/* User Profile Details Menu */}
               {showUserMenu && (
                 <div 
-                  id="role-switcher-dropdown"
-                  className="absolute left-0 mt-2 w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-2.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                  id="user-profile-dropdown"
+                  className="absolute left-0 mt-2 w-72 bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 text-right"
+                  dir="rtl"
                 >
-                  <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-700/60 text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-bold text-slate-800 dark:text-slate-200 block mb-0.5">تبديل الحساب لتجربة الأدوار المختلفة:</span>
-                    انقر للتبديل الفوري بين واجهات المنظومة
-                  </div>
+                  {/* User Details Header */}
+                  <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl mb-2 space-y-2 border border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                        <RoleIcon className="w-5 h-5" />
+                      </div>
+                      <div className="overflow-hidden">
+                        <span className="font-bold text-sm text-slate-900 dark:text-white block truncate">
+                          {currentUser?.displayName}
+                        </span>
+                        <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
+                          {roleMeta.title}
+                        </span>
+                      </div>
+                    </div>
 
-                  {/* 4 Quick Role Switch Pills */}
-                  <div className="p-2 border-b border-slate-100 dark:border-slate-700/60">
-                    <span className="text-[10px] font-bold text-slate-400 block mb-1.5">تبديل سريع مباشر:</span>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          switchUser('canteen_servant_01');
-                          setShowUserMenu(false);
-                          setActiveView('canteen-dashboard');
-                        }}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition text-start border ${
-                          role === 'canteen_servant'
-                            ? 'bg-amber-500 text-white border-amber-600 shadow-xs'
-                            : 'bg-amber-50/80 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100'
-                        }`}
-                      >
-                        <Coffee className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">مسؤول الكانتين</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          switchUser('admin_abouna_01');
-                          setShowUserMenu(false);
-                          setActiveView('admin-dashboard');
-                        }}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition text-start border ${
-                          role === 'admin'
-                            ? 'bg-purple-600 text-white border-purple-700 shadow-xs'
-                            : 'bg-purple-50/80 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 border-purple-200 dark:border-purple-800/60 hover:bg-purple-100'
-                        }`}
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">أمانة الخدمة</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          switchUser('servant_maged_01');
-                          setShowUserMenu(false);
-                          setActiveView('admin-dashboard');
-                        }}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition text-start border ${
-                          role === 'servant'
-                            ? 'bg-blue-600 text-white border-blue-700 shadow-xs'
-                            : 'bg-blue-50/80 dark:bg-blue-950/30 text-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800/60 hover:bg-blue-100'
-                        }`}
-                      >
-                        <Users className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">خادم (خ. ماجد)</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          switchUser('user_mina_01');
-                          setShowUserMenu(false);
-                          setActiveView('youth-home');
-                        }}
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition text-start border ${
-                          role === 'youth' && currentUser?.userId === 'user_mina_01'
-                            ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                            : 'bg-emerald-50/80 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-100'
-                        }`}
-                      >
-                        <User className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">شاب (مينا عادل)</span>
-                      </button>
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800 text-xs space-y-1 text-slate-600 dark:text-slate-400">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1">
+                          <IdCard className="w-3.5 h-3.5 text-slate-400" />
+                          <span>الكود الكنسي:</span>
+                        </span>
+                        <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-1.5 py-0.5 rounded text-[11px]">
+                          {currentUser?.userCode || '---'}
+                        </span>
+                      </div>
+                      {currentUser?.phoneNumber && (
+                        <div className="flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <Phone className="w-3.5 h-3.5 text-slate-400" />
+                            <span>رقم الهاتف:</span>
+                          </span>
+                          <span className="font-mono text-[11px]">
+                            {currentUser.phoneNumber}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div className="py-1 max-h-60 overflow-y-auto space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 px-2 block pt-1">جميع الحسابات المسجلة:</span>
-                    {(() => {
-                      // Order users: admin first, canteen servant second, servants third, youth fourth
-                      const rolePriority: Record<string, number> = {
-                        admin: 1,
-                        canteen_servant: 2,
-                        servant: 3,
-                        supervisor: 4,
-                        youth: 5,
-                      };
-                      
-                      // Ensure canteen_servant_01 is included even if stale array
-                      const displayList = [...allUsers];
-                      if (!displayList.some(u => u.role === 'canteen_servant' || u.userId === 'canteen_servant_01')) {
-                        displayList.unshift({
-                          userId: 'canteen_servant_01',
-                          userCode: 'CN_000001',
-                          displayName: 'ميخائيل رشدي — مسؤول الكانتين',
-                          role: 'canteen_servant',
-                          phoneNumber: '01239998881',
-                          gender: 'male',
-                          scheduleType: 'regular',
-                          totalAttendances: 50,
-                          currentStreak: 25,
-                          bestStreak: 25,
-                          totalPoints: 100,
-                          consecutiveAbsences: 0,
-                          followUpStatus: 'regular',
-                          createdAt: '2024-01-01',
-                          updatedAt: '2026-09-06'
-                        });
-                      }
+                  {/* Navigation Links */}
+                  <div className="py-1 space-y-1">
+                    {role === 'youth' && (
+                      <button
+                        onClick={() => {
+                          setActiveView('youth-profile');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl text-xs font-medium transition"
+                      >
+                        <User className="w-4 h-4 text-indigo-500" />
+                        <span>الملف الشخصي والبيانات</span>
+                      </button>
+                    )}
 
-                      displayList.sort((a, b) => {
-                        const pA = rolePriority[a.role] ?? 99;
-                        const pB = rolePriority[b.role] ?? 99;
-                        return pA - pB;
-                      });
+                    {(role === 'admin' || role === 'servant' || role === 'supervisor') && (
+                      <button
+                        onClick={() => {
+                          setActiveView('admin-dashboard');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl text-xs font-medium transition"
+                      >
+                        <LayoutDashboard className="w-4 h-4 text-indigo-500" />
+                        <span>لوحة التحكم الرئيسية للخدمة</span>
+                      </button>
+                    )}
 
-                      return displayList.map((user) => {
-                        const isCanteenUser = user.role === 'canteen_servant';
-                        const isCurrent = currentUser?.userId === user.userId;
-
-                        return (
-                          <button
-                            key={user.userId}
-                            onClick={() => {
-                              switchUser(user.userId);
-                              setShowUserMenu(false);
-                              if (user.role === 'youth' && activeView !== 'youth-home') {
-                                setActiveView('youth-home');
-                              } else if (user.role === 'canteen_servant' && !activeView.startsWith('canteen-')) {
-                                setActiveView('canteen-dashboard');
-                              } else if ((user.role === 'admin' || user.role === 'servant') && !activeView.startsWith('admin-')) {
-                                setActiveView('admin-dashboard');
-                              }
-                            }}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-start text-xs transition ${
-                              isCurrent 
-                                ? isCanteenUser
-                                  ? 'bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 font-bold border border-amber-300'
-                                  : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-900 dark:text-indigo-200 font-semibold' 
-                                : isCanteenUser
-                                ? 'bg-amber-50/50 dark:bg-amber-950/20 text-slate-800 dark:text-slate-200 hover:bg-amber-100/70 border border-amber-200/50'
-                                : 'hover:bg-slate-50 dark:hover:bg-slate-700/40 text-slate-700 dark:text-slate-300'
-                            }`}
-                          >
-                            <div className="flex items-center gap-2 truncate">
-                              {isCanteenUser ? (
-                                <Coffee className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                              ) : (
-                                <div className={`w-2 h-2 rounded-full shrink-0 ${
-                                  user.role === 'admin' ? 'bg-purple-500' : user.role === 'servant' ? 'bg-blue-500' : 'bg-emerald-500'
-                                }`} />
-                              )}
-                              <span className="truncate">{user.displayName}</span>
-                            </div>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                              isCanteenUser
-                                ? 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200'
-                                : user.role === 'admin'
-                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300'
-                                : user.role === 'servant'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300'
-                                : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
-                            }`}>
-                              {user.role === 'admin' ? 'أمانة الخدمة' : user.role === 'canteen_servant' ? 'مسؤول الكانتين' : user.role === 'servant' ? 'خادم' : 'شاب'}
-                            </span>
-                          </button>
-                        );
-                      });
-                    })()}
+                    {role === 'canteen_servant' && (
+                      <button
+                        onClick={() => {
+                          setActiveView('canteen-dashboard');
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 rounded-xl text-xs font-medium transition"
+                      >
+                        <Coffee className="w-4 h-4 text-amber-500" />
+                        <span>لوحة استبدال طلبات الكانتين</span>
+                      </button>
+                    )}
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                  {/* Logout Button */}
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 mt-1">
                     <button
-                      onClick={() => {
-                        logout();
+                      id="logout-button"
+                      onClick={async () => {
                         setShowUserMenu(false);
+                        await logout();
                       }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl text-xs font-medium transition"
+                      className="w-full flex items-center justify-between px-3 py-2 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl text-xs font-bold transition"
                     >
-                      <LogOut className="w-3.5 h-3.5" />
-                      <span>تسجيل الخروج</span>
+                      <span className="flex items-center gap-2">
+                        <LogOut className="w-4 h-4" />
+                        <span>تسجيل الخروج من الحساب</span>
+                      </span>
                     </button>
                   </div>
                 </div>

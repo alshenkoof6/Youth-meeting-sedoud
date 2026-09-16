@@ -4,6 +4,8 @@ import { dataStore } from '../../services/dataStore';
 import { streakService } from '../../services/streakService';
 import { formatArabicDate, formatArabicTime } from '../../lib/utils';
 import { YouthStreakCard } from './YouthStreakCard';
+import { YouthBirthdayWidget } from '../birthdays/YouthBirthdayWidget';
+import { UpcomingEventsWidget } from '../calendar/UpcomingEventsWidget';
 import { 
   Flame, 
   Star, 
@@ -127,11 +129,17 @@ export const YouthHome: React.FC<YouthHomeProps> = ({ onOpenScan, setActiveView 
 
       </div>
 
+      {/* Youth Birthday Banner Widget (if today or within 7 days) */}
+      <YouthBirthdayWidget />
+
       {/* 2.5 Detailed Interactive Streak Progress Component */}
       <YouthStreakCard 
         streakData={streakData} 
         onOpenScan={onOpenScan} 
       />
+
+      {/* Upcoming Events Widget */}
+      <UpcomingEventsWidget onViewCalendar={() => setActiveView('calendar')} maxItems={2} />
 
       {/* 3. Next Meeting Card */}
       {nextMeeting && (

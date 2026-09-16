@@ -154,9 +154,15 @@ export class DataStore {
       if (idx === -1) {
         this.users.push(initUser);
         usersUpdated = true;
-      } else if (initUser.role === 'canteen_servant' && this.users[idx].role !== 'canteen_servant') {
-        this.users[idx] = { ...this.users[idx], role: 'canteen_servant', displayName: initUser.displayName };
-        usersUpdated = true;
+      } else {
+        if (!this.users[idx].password && initUser.password) {
+          this.users[idx].password = initUser.password;
+          usersUpdated = true;
+        }
+        if (initUser.role === 'canteen_servant' && this.users[idx].role !== 'canteen_servant') {
+          this.users[idx] = { ...this.users[idx], role: 'canteen_servant', displayName: initUser.displayName };
+          usersUpdated = true;
+        }
       }
     }
     if (usersUpdated) {
@@ -178,6 +184,7 @@ export class DataStore {
     this.feedback = getStored('feedback', []);
     this.reminders = getStored('reminders', []);
     this.settings = getStored('settings', INITIAL_SETTINGS);
+    this.auditLogs = getStored('auditLogs', this.auditLogs);
 
     // Auto migrate existing legacy coupons into vouchers if needed
     if (this.coupons.length > 0 && this.vouchers.length === 0) {
@@ -218,6 +225,7 @@ export class DataStore {
     saveStored('feedback', this.feedback);
     saveStored('reminders', this.reminders);
     saveStored('settings', this.settings);
+    saveStored('auditLogs', this.auditLogs);
     this.notify();
   }
 
@@ -380,6 +388,15 @@ export class DataStore {
         if (!snap.empty) {
           this.feedback = snap.docs.map((d) => d.data() as MeetingFeedback);
           saveStored('feedback', this.feedback);
+          this.notify();
+        }
+      });
+
+      // Audit logs listener
+      onSnapshot(collection(db, 'auditLogs'), (snap) => {
+        if (!snap.empty) {
+          this.auditLogs = snap.docs.map((d) => d.data() as AuditLog);
+          saveStored('auditLogs', this.auditLogs);
           this.notify();
         }
       });
@@ -682,6 +699,25 @@ export class DataStore {
     };
   }
 
+  // Redeem Coupon (by Admin or Canteen Servant)
+  public async redeemCoupon(couponId: string): Promise<boolean> {
+    const coupon = this.coupons.find((c) => c.couponId.toUpperCase() === couponId.toUpperCase());
+    if (!coupon) return false;
+    coupon.status = 'redeemed';
+    coupon.redeemedAt = new Date().toISOString();
+    this.saveAllLocal();
+    try {
+      const db = getFirebaseDb();
+      await updateDoc(doc(db, 'coupons', coupon.couponId), {
+        status: 'redeemed',
+        redeemedAt: coupon.redeemedAt,
+      });
+    } catch (e) {
+      console.warn('Sync redeem coupon to Firestore:', e);
+    }
+    return true;
+  }
+
   // Submit Feedback
   public async submitFeedback(feedbackItem: MeetingFeedback): Promise<void> {
     this.feedback.unshift(feedbackItem);
@@ -764,6 +800,37 @@ export class DataStore {
       await setDoc(doc(db, 'trips', trip.tripId), trip);
     } catch (e) {
       console.warn('Sync create trip:', e);
+    }
+  }
+
+  public async saveEvent(event: ChurchEvent): Promise<void> {
+    const idx = this.events.findIndex((e) => e.eventId === event.eventId);
+    if (idx >= 0) {
+      this.events[idx] = event;
+    } else {
+      this.events.unshift(event);
+    }
+    this.saveAllLocal();
+    try {
+      const db = getFirebaseDb();
+      await setDoc(doc(db, 'events', event.eventId), event);
+    } catch (e) {
+      console.warn('Sync save event:', e);
+    }
+  }
+
+  public async createEvent(event: ChurchEvent): Promise<void> {
+    return this.saveEvent(event);
+  }
+
+  public async deleteEvent(eventId: string): Promise<void> {
+    this.events = this.events.filter((e) => e.eventId !== eventId);
+    this.saveAllLocal();
+    try {
+      const db = getFirebaseDb();
+      await deleteDoc(doc(db, 'events', eventId));
+    } catch (e) {
+      console.warn('Sync delete event:', e);
     }
   }
 

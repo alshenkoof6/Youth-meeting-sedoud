@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import { dataStore } from '../../services/dataStore';
 import { RewardItem } from '../../types';
 import {
@@ -11,10 +12,14 @@ import {
   AlertTriangle,
   Package,
   Layers,
-  Sparkles
+  Sparkles,
+  Lock
 } from 'lucide-react';
 
 export const CanteenRewards: React.FC<{ setActiveView: (view: string) => void }> = ({ setActiveView }) => {
+  const { role, currentUser } = useAuth();
+  const canManageRewards = role === 'admin' || role === 'supervisor' || role === 'canteen_servant';
+
   const [rewards, setRewards] = useState<RewardItem[]>(dataStore.rewards);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingReward, setEditingReward] = useState<RewardItem | null>(null);
@@ -72,6 +77,18 @@ export const CanteenRewards: React.FC<{ setActiveView: (view: string) => void }>
         updatedAt: new Date().toISOString(),
       };
       await dataStore.updateReward(updated);
+
+      if (currentUser) {
+        await dataStore.logAudit({
+          actorId: currentUser.userId,
+          actorName: currentUser.displayName,
+          actorRole: role,
+          action: `تعديل صنف الكانتين: ${updated.title}`,
+          targetCollection: 'rewards',
+          targetId: updated.rewardId,
+          details: updated,
+        });
+      }
     } else {
       const newReward: RewardItem = {
         rewardId: `rwd_${Date.now()}`,
@@ -85,16 +102,61 @@ export const CanteenRewards: React.FC<{ setActiveView: (view: string) => void }>
         updatedAt: new Date().toISOString(),
       };
       await dataStore.createReward(newReward);
+
+      if (currentUser) {
+        await dataStore.logAudit({
+          actorId: currentUser.userId,
+          actorName: currentUser.displayName,
+          actorRole: role,
+          action: `إضافة منتج جديد للكانتين: ${newReward.title} (${newReward.requiredPoints} نقطة)`,
+          targetCollection: 'rewards',
+          targetId: newReward.rewardId,
+          details: newReward,
+        });
+      }
     }
 
     setIsModalOpen(false);
   };
 
-  const handleDelete = async (rewardId: string) => {
+  const handleDelete = async (rewardId: string, rewardTitle?: string) => {
     if (window.confirm('هل تريد بالتأكيد حذف هذا الصنف من الكانتين؟')) {
       await dataStore.deleteReward(rewardId);
+
+      if (currentUser) {
+        await dataStore.logAudit({
+          actorId: currentUser.userId,
+          actorName: currentUser.displayName,
+          actorRole: role,
+          action: `حذف صنف من الكانتين: ${rewardTitle || rewardId}`,
+          targetCollection: 'rewards',
+          targetId: rewardId,
+          details: { rewardId, title: rewardTitle },
+        });
+      }
     }
   };
+
+  if (!canManageRewards) {
+    return (
+      <div className="p-6 max-w-xl mx-auto my-12" dir="rtl">
+        <div className="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/60 rounded-3xl p-8 text-center shadow-lg space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center mx-auto border border-rose-200 dark:border-rose-800">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white">
+            صلاحية الوصول غير متاحة
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed max-w-md mx-auto">
+            إدارة منتجات الكانتين والمكافآت والتعديل عليها مقتصرة حصرياً على خادم الكانتين وأمين الخدمة فقط.
+          </p>
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-400">
+            رتبتك الحالية: {role === 'servant' ? 'خادم متابعة' : role === 'youth' ? 'شاب مخدوم' : role}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
@@ -182,7 +244,7 @@ export const CanteenRewards: React.FC<{ setActiveView: (view: string) => void }>
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => handleDelete(reward.rewardId)}
+                    onClick={() => handleDelete(reward.rewardId, reward.title)}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
                     title="حذف المنتج"
                   >
