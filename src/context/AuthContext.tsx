@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile, UserRole } from '../types';
 import { dataStore } from '../services/dataStore';
-import { normalizeChurchCode } from '../utils/churchAuthUtils';
+import { normalizeChurchCode, cleanAuthInput, matchesCredential } from '../utils/churchAuthUtils';
 import { getFirebaseAuth } from '../lib/firebase';
 import {
   signInWithEmailAndPassword,
@@ -93,20 +93,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     codeOrPhone: string,
     passwordInput: string
   ): Promise<{ success: boolean; error?: string }> => {
-    const rawInput = codeOrPhone.trim();
-    if (!rawInput) {
+    const cleanRaw = cleanAuthInput(codeOrPhone);
+    if (!cleanRaw) {
       return { success: false, error: 'يرجى إدخال الكود الكنسي أو رقم الهاتف' };
     }
-    if (!passwordInput) {
+    const cleanPassword = cleanAuthInput(passwordInput);
+    if (!cleanPassword) {
       return { success: false, error: 'يرجى إدخال كلمة المرور' };
     }
 
-    const normalizedInput = normalizeChurchCode(rawInput);
+    const normalizedInput = normalizeChurchCode(cleanRaw);
 
-    // Look up user strictly in registered users
+    // Look up user strictly in registered users (matching by Church Code or phone number)
     const user = allUsers.find((u) => {
       const uCode = normalizeChurchCode(u.userCode || '');
-      return uCode === normalizedInput || u.phoneNumber.trim() === rawInput;
+      const uPhone = cleanAuthInput(u.phoneNumber);
+      return (
+        uCode === normalizedInput ||
+        uPhone === cleanRaw ||
+        (cleanRaw.length >= 9 && uPhone.endsWith(cleanRaw.slice(-9)))
+      );
     });
 
     if (!user) {
@@ -116,20 +122,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    const inputPass = passwordInput.trim();
-    const storedPass = user.password?.trim();
-    const tempPass = user.temporaryPassword?.trim();
-
-    // Strict credential check: must match permanent password or assigned temporary password
-    const isPermanentMatch = !!storedPass && storedPass === inputPass;
-    const isTempMatch = !!tempPass && tempPass === inputPass;
+    // Credential check: matches permanent password or assigned temporary password (with mobile tolerance)
+    const isPermanentMatch = matchesCredential(user.password, cleanPassword, false);
+    const isTempMatch = matchesCredential(user.temporaryPassword, cleanPassword, true);
 
     if (!isPermanentMatch && !isTempMatch) {
       return {
         success: false,
-        error: 'كلمة المرور غير صحيحة. يرجى التأكد من كلمة المرور الخاصة بك أو المؤقتة.',
+        error: 'كلمة المرور غير صحيحة. يرجى التأكد من كلمة المرور الخاصة بك أو المؤقتة، مع مراعاة الحروف الكبيرة والصغيرة إن وجدت.',
       };
     }
+
+    const inputPass = cleanPassword;
 
     // Authenticate with Firebase Authentication
     try {

@@ -1,4 +1,4 @@
-import { UserProfile, Meeting, Trip, ChurchEvent, Announcement, RewardItem, AttendanceRecord, FollowUpRecord, SystemSettings } from '../types';
+import { UserProfile, Meeting, Trip, ChurchEvent, Announcement, RewardItem, AttendanceRecord, FollowUpRecord, SystemSettings, MysteryBoxConfig } from '../types';
 
 export const INITIAL_SETTINGS: SystemSettings = {
   followUpThresholds: {
@@ -692,3 +692,129 @@ export const INITIAL_FOLLOWUPS: FollowUpRecord[] = [
     createdAt: '2026-09-05T20:30:00Z',
   }
 ];
+
+export const INITIAL_MYSTERY_BOXES: MysteryBoxConfig[] = [
+  {
+    boxId: 'points_box',
+    title: 'صندوق المفاجآت بالنقاط (Points Mystery Box)',
+    description: 'استبدل 200 نقطة واكتشف هديتك المفاجئة من كانتين الكنيسة!',
+    isActive: true,
+    costInPoints: 200,
+    rewards: [
+      {
+        rewardId: 'mb_r_01',
+        name: 'بسكوت فاخر وشيكولاتة',
+        icon: '🍪',
+        approximateValue: 10,
+        probability: 40,
+        stock: 50,
+        isActive: true,
+        timesWon: 12,
+      },
+      {
+        rewardId: 'mb_r_02',
+        name: 'عصير فريش مثلج',
+        icon: '🥤',
+        approximateValue: 12,
+        probability: 30,
+        stock: 40,
+        isActive: true,
+        timesWon: 9,
+      },
+      {
+        rewardId: 'mb_r_03',
+        name: 'شيبسي مقرمش عائلي',
+        icon: '🍟',
+        approximateValue: 15,
+        probability: 18,
+        stock: 30,
+        isActive: true,
+        timesWon: 6,
+      },
+      {
+        rewardId: 'mb_r_04',
+        name: 'قلم أنيق + صورة قديس تذكارية',
+        icon: '🖊️',
+        approximateValue: 20,
+        probability: 9,
+        stock: 20,
+        isActive: true,
+        timesWon: 3,
+      },
+      {
+        rewardId: 'mb_r_05',
+        name: 'لعبة مسلية صغيرة خاصة',
+        icon: '🎲',
+        approximateValue: 30,
+        probability: 3,
+        stock: 10,
+        isActive: true,
+        timesWon: 1,
+      },
+    ],
+    updatedAt: '2026-09-17T10:00:00Z',
+  },
+  {
+    boxId: 'birthday_box',
+    title: 'صندوق مفاجأة عيد الميلاد (Birthday Mystery Box)',
+    description: 'هدية مجانية من الكنيسة واجتماع الشباب احتفالاً بعيد ميلادك المبارك ❤️',
+    isActive: true,
+    costInPoints: 0,
+    birthdayAvailabilityDays: 7,
+    maxPerYearPerUser: 1,
+    rewards: [
+      {
+        rewardId: 'bmb_r_01',
+        name: 'سناك شيكولاتة وكيك عيد ميلاد',
+        icon: '🍪',
+        approximateValue: 15,
+        probability: 40,
+        stock: 50,
+        isActive: true,
+        timesWon: 5,
+      },
+      {
+        rewardId: 'bmb_r_02',
+        name: 'كانز عصير طبيعي مثلج',
+        icon: '🥤',
+        approximateValue: 15,
+        probability: 30,
+        stock: 40,
+        isActive: true,
+        timesWon: 4,
+      },
+      {
+        rewardId: 'bmb_r_03',
+        name: 'باكيت شيبسي جامبو',
+        icon: '🍟',
+        approximateValue: 20,
+        probability: 20,
+        stock: 30,
+        isActive: true,
+        timesWon: 3,
+      },
+      {
+        rewardId: 'bmb_r_04',
+        name: 'نوت بوك روحي + قلم فاخر',
+        icon: '🖊️',
+        approximateValue: 25,
+        probability: 8,
+        stock: 20,
+        isActive: true,
+        timesWon: 1,
+      },
+      {
+        rewardId: 'bmb_r_05',
+        name: 'هدية تذكارية خاصة ومباركة من الكنيسة',
+        icon: '🎁',
+        approximateValue: 50,
+        probability: 2,
+        stock: 10,
+        isActive: true,
+        timesWon: 1,
+      },
+    ],
+    updatedAt: '2026-09-17T10:00:00Z',
+  },
+];
+

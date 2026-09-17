@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Church youth meeting user profile",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userCode": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string" },
+        "totalPoints": { "type": "number" },
+        "birthDate": { "type": "string" }
+      },
+      "required": ["userId", "displayName", "role"]
+    },
+    "Voucher": {
+      "title": "Voucher",
+      "description": "Redeemable QR voucher for canteen rewards and mystery boxes",
+      "type": "object",
+      "properties": {
+        "voucherId": { "type": "string" },
+        "voucherCode": { "type": "string" },
+        "qrToken": { "type": "string" },
+        "userId": { "type": "string" },
+        "rewardNameSnapshot": { "type": "string" },
+        "pointsCost": { "type": "number" },
+        "status": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "required": ["voucherId", "voucherCode", "qrToken", "userId", "status"]
+    },
+    "MysteryBoxConfig": {
+      "title": "MysteryBoxConfig",
+      "description": "Configuration for Points Mystery Box and Birthday Mystery Box",
+      "type": "object",
+      "properties": {
+        "boxId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "costInPoints": { "type": "number" },
+        "birthdayAvailabilityDays": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["boxId", "title", "isActive", "costInPoints"]
+    },
+    "MysteryBoxRedemption": {
+      "title": "MysteryBoxRedemption",
+      "description": "Immutable log of an opened mystery box",
+      "type": "object",
+      "properties": {
+        "redemptionId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "boxId": { "type": "string" },
+        "boxType": { "type": "string" },
+        "costInPoints": { "type": "number" },
+        "rewardId": { "type": "string" },
+        "rewardName": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["redemptionId", "userId", "boxId", "rewardId", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Collection of all youth, servants, and priests in the meeting"
+    },
+    "/vouchers/{voucherId}": {
+      "schema": "Voucher",
+      "description": "Collection of active and redeemed vouchers"
+    },
+    "/mysteryBoxConfigs/{boxId}": {
+      "schema": "MysteryBoxConfig",
+      "description": "Configurations for points and birthday mystery boxes"
+    },
+    "/mysteryBoxRedemptions/{redemptionId}": {
+      "schema": "MysteryBoxRedemption",
+      "description": "Audit records of all mystery boxes opened by users"
+    }
+  }
+}

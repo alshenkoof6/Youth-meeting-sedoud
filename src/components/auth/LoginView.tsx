@@ -173,6 +173,9 @@ export const LoginView: React.FC = () => {
                     placeholder="مثال: YT-00125 أو رقم الهاتف"
                     className="w-full pl-4 pr-10 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold tracking-wider text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     dir="ltr"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck="false"
                     autoFocus
                     required
                   />
@@ -193,6 +196,10 @@ export const LoginView: React.FC = () => {
                     placeholder="كلمة المرور المؤقتة أو الخاصة بك"
                     className="w-full pl-10 pr-10 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold tracking-wider text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                     dir="ltr"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck="false"
+                    autoComplete="current-password"
                     required
                   />
                   <button

@@ -11,12 +11,12 @@ import {
   EyeOff,
   Sparkles
 } from 'lucide-react';
-import { evaluatePasswordStrength } from '../../utils/churchAuthUtils';
+import { evaluatePasswordStrength, cleanAuthInput, matchesCredential } from '../../utils/churchAuthUtils';
 
 export const ForceChangePasswordModal: React.FC = () => {
   const { currentUser, updateCurrentUserProfile } = useAuth();
   
-  const [currentTempPassword, setCurrentTempPassword] = useState('');
+  const [currentTempPassword, setCurrentTempPassword] = useState(currentUser?.temporaryPassword || '');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
@@ -27,15 +27,18 @@ export const ForceChangePasswordModal: React.FC = () => {
 
   if (!currentUser) return null;
 
-  const strength = evaluatePasswordStrength(newPassword);
+  const cleanNew = cleanAuthInput(newPassword);
+  const cleanConfirm = cleanAuthInput(confirmPassword);
+  const strength = evaluatePasswordStrength(cleanNew);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    // Verify current temporary password if user has one stored
+    // Verify current temporary password if user has one stored and manually changed it
     if (currentUser.temporaryPassword) {
-      if (currentTempPassword.trim() !== currentUser.temporaryPassword.trim()) {
+      const cleanCurrent = cleanAuthInput(currentTempPassword);
+      if (cleanCurrent && !matchesCredential(currentUser.temporaryPassword, cleanCurrent, true)) {
         setErrorMsg('كلمة المرور المؤقتة غير صحيحة، يرجى مراجعة الكلمة التي استلمتها من الخادم المسؤول');
         return;
       }
@@ -46,12 +49,12 @@ export const ForceChangePasswordModal: React.FC = () => {
       return;
     }
 
-    if (newPassword.trim() === currentUser.temporaryPassword?.trim()) {
+    if (currentUser.temporaryPassword && matchesCredential(currentUser.temporaryPassword, cleanNew, true)) {
       setErrorMsg('يجب اختيار كلمة مرور جديدة تختلف عن كلمة المرور المؤقتة');
       return;
     }
 
-    if (newPassword !== confirmPassword) {
+    if (cleanNew !== cleanConfirm) {
       setErrorMsg('كلمتا المرور غير متطابقتين');
       return;
     }
@@ -63,7 +66,7 @@ export const ForceChangePasswordModal: React.FC = () => {
       await new Promise((resolve) => setTimeout(resolve, 1400));
 
       await updateCurrentUserProfile({
-        password: newPassword.trim(),
+        password: cleanNew,
         temporaryPassword: undefined,
         mustChangePassword: false,
         passwordChangedAt: new Date().toISOString(),
@@ -145,6 +148,9 @@ export const ForceChangePasswordModal: React.FC = () => {
                   placeholder="أدخل كلمة المرور المؤقتة"
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold tracking-wider text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
                   dir="ltr"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   required
                 />
                 <button
@@ -171,6 +177,9 @@ export const ForceChangePasswordModal: React.FC = () => {
                   placeholder="اختر كلمة مرور خاصة بك (6 أحرف أو أرقام على الأقل)"
                   className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold tracking-wider text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   dir="ltr"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   required
                 />
                 <button
@@ -211,6 +220,9 @@ export const ForceChangePasswordModal: React.FC = () => {
                   placeholder="أعد كتابة كلمة المرور الجديدة"
                   className="w-full pl-4 pr-10 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm font-semibold tracking-wider text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   dir="ltr"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   required
                 />
               </div>

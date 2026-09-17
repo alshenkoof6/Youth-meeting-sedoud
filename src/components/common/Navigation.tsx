@@ -47,7 +47,8 @@ export const Navigation: React.FC<NavigationProps> = ({
     const canteenNavItems = [
       { id: 'canteen-dashboard', label: 'مكتب الصرف والتحقق', icon: ScanLine },
       { id: 'canteen-rewards', label: 'المخزون والمنتجات', icon: Coffee },
-      { id: 'admin-rewards', label: 'سجل المكافآت العام', icon: Gift },
+      { id: 'canteen-mystery-boxes', label: 'صناديق المفاجآت 🎁', icon: Gift },
+      { id: 'admin-rewards', label: 'سجل المكافآت العام', icon: Award },
     ];
 
     return (
@@ -189,6 +190,7 @@ export const Navigation: React.FC<NavigationProps> = ({
     { id: 'admin-events', label: 'الأنشطة والأيام الروحية', icon: Sparkles },
     { id: 'admin-announcements', label: 'الإعلانات واللوحة', icon: Megaphone },
     ...((role === 'admin' || role === 'supervisor') ? [{ id: 'admin-rewards', label: 'المكافآت والنقاط', icon: Gift }] : []),
+    ...((role === 'admin' || role === 'supervisor') ? [{ id: 'canteen-mystery-boxes', label: 'صناديق المفاجآت (الكانتين)', icon: Sparkles }] : []),
     { id: 'admin-feedback', label: 'تقييمات وآراء الشباب', icon: MessageSquare },
     ...((role === 'admin' || role === 'supervisor') ? [{ id: 'admin-reports', label: 'التقارير وتصدير البيانات', icon: FileSpreadsheet }] : []),
     ...(role === 'admin' ? [{ id: 'audit-logs', label: 'سجل التدقيق والمحاسبة', icon: ShieldCheck }] : []),

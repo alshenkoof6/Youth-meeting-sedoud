@@ -37,10 +37,7 @@ service cloud.firestore {
 
     // Users collection
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow delete: if isAdmin();
+      allow read, write: if isAuthenticated();
     }
 
     // Youth Profiles
@@ -150,6 +147,19 @@ service cloud.firestore {
     match /settings/{settingId} {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
+    }
+
+    // Mystery Box Configurations
+    match /mysteryBoxConfigs/{boxId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isCanteenServant();
+    }
+
+    // Mystery Box Redemptions (Audit trail)
+    match /mysteryBoxRedemptions/{redemptionId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isCanteenServant() || isServant());
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Immutable audit trail
     }
 
     // Audit logs

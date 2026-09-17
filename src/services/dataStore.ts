@@ -29,7 +29,9 @@ import {
   MeetingFeedback,
   SpiritualReminder,
   SystemSettings,
-  AuditLog
+  AuditLog,
+  MysteryBoxConfig,
+  MysteryBoxRedemptionRecord
 } from '../types';
 import { calculateYouthStreak, YouthStreakCalculation } from '../utils/streakCalculator';
 import {
@@ -41,7 +43,8 @@ import {
   INITIAL_REWARDS,
   INITIAL_ATTENDANCE,
   INITIAL_FOLLOWUPS,
-  INITIAL_SETTINGS
+  INITIAL_SETTINGS,
+  INITIAL_MYSTERY_BOXES
 } from '../lib/initialData';
 
 // Local storage key prefixes for fallback / offline sync
@@ -84,6 +87,8 @@ export class DataStore {
   public feedback: MeetingFeedback[] = [];
   public reminders: SpiritualReminder[] = [];
   public settings: SystemSettings = INITIAL_SETTINGS;
+  public mysteryBoxConfigs: MysteryBoxConfig[] = [];
+  public mysteryBoxRedemptions: MysteryBoxRedemptionRecord[] = [];
   public auditLogs: AuditLog[] = [
     {
       logId: 'log_1',
@@ -199,6 +204,8 @@ export class DataStore {
     this.feedback = getStored('feedback', []);
     this.reminders = getStored('reminders', []);
     this.settings = getStored('settings', INITIAL_SETTINGS);
+    this.mysteryBoxConfigs = getStored('mysteryBoxConfigs', INITIAL_MYSTERY_BOXES);
+    this.mysteryBoxRedemptions = getStored('mysteryBoxRedemptions', []);
     this.auditLogs = getStored('auditLogs', this.auditLogs);
 
     // Auto migrate existing legacy coupons into vouchers if needed
@@ -240,6 +247,8 @@ export class DataStore {
     saveStored('feedback', this.feedback);
     saveStored('reminders', this.reminders);
     saveStored('settings', this.settings);
+    saveStored('mysteryBoxConfigs', this.mysteryBoxConfigs);
+    saveStored('mysteryBoxRedemptions', this.mysteryBoxRedemptions);
     saveStored('auditLogs', this.auditLogs);
     this.notify();
   }
@@ -323,13 +332,32 @@ export class DataStore {
       attachListener('users', (snap) => {
         if (!snap.empty) {
           const remoteUsers = snap.docs.map((d: any) => d.data() as UserProfile);
+          // Preserve locally created users (like newly added servants or youth)
+          // so incoming snapshots don't inadvertently wipe out locally stored users
+          const mergedUsers = [...remoteUsers];
+          for (const localUser of this.users) {
+            const remoteIdx = mergedUsers.findIndex((u) => u.userId === localUser.userId);
+            if (remoteIdx === -1) {
+              mergedUsers.push(localUser);
+              // Backfill local user to Firestore in background
+              setDoc(doc(db, 'users', localUser.userId), localUser).catch(() => {});
+            } else {
+              // If remote user has missing credentials but local has them, preserve local credentials
+              if (!mergedUsers[remoteIdx].password && localUser.password) {
+                mergedUsers[remoteIdx].password = localUser.password;
+              }
+              if (!mergedUsers[remoteIdx].temporaryPassword && localUser.temporaryPassword) {
+                mergedUsers[remoteIdx].temporaryPassword = localUser.temporaryPassword;
+              }
+            }
+          }
           for (const initUser of INITIAL_USERS) {
-            if (!remoteUsers.some((u) => u.userId === initUser.userId)) {
-              remoteUsers.push(initUser);
+            if (!mergedUsers.some((u) => u.userId === initUser.userId)) {
+              mergedUsers.push(initUser);
               setDoc(doc(db, 'users', initUser.userId), initUser).catch(() => {});
             }
           }
-          this.users = remoteUsers;
+          this.users = mergedUsers;
           saveStored('users', this.users);
           this.notify();
         }
@@ -439,6 +467,24 @@ export class DataStore {
         if (!snap.empty) {
           this.auditLogs = snap.docs.map((d: any) => d.data() as AuditLog);
           saveStored('auditLogs', this.auditLogs);
+          this.notify();
+        }
+      });
+
+      // Mystery Box Configs listener
+      attachListener('mysteryBoxConfigs', (snap) => {
+        if (!snap.empty) {
+          this.mysteryBoxConfigs = snap.docs.map((d: any) => d.data() as MysteryBoxConfig);
+          saveStored('mysteryBoxConfigs', this.mysteryBoxConfigs);
+          this.notify();
+        }
+      });
+
+      // Mystery Box Redemptions listener
+      attachListener('mysteryBoxRedemptions', (snap) => {
+        if (!snap.empty) {
+          this.mysteryBoxRedemptions = snap.docs.map((d: any) => d.data() as MysteryBoxRedemptionRecord);
+          saveStored('mysteryBoxRedemptions', this.mysteryBoxRedemptions);
           this.notify();
         }
       });
@@ -804,6 +850,27 @@ export class DataStore {
   }
 
   // Convenience methods
+  public async saveVoucher(voucher: Voucher): Promise<void> {
+    const idx = this.vouchers.findIndex((v) => v.voucherId === voucher.voucherId);
+    if (idx >= 0) {
+      this.vouchers[idx] = voucher;
+    } else {
+      this.vouchers.unshift(voucher);
+    }
+    this.saveAllLocal();
+
+    try {
+      const db = getFirebaseDb();
+      await setDoc(doc(db, 'vouchers', voucher.voucherId), voucher);
+    } catch (e) {
+      console.warn('Sync voucher to Firestore:', e);
+    }
+  }
+
+  public async createVoucher(voucher: Voucher): Promise<void> {
+    return this.saveVoucher(voucher);
+  }
+
   public async createMeeting(meeting: Meeting): Promise<void> {
     return this.saveMeeting(meeting);
   }
@@ -958,6 +1025,40 @@ export class DataStore {
       await setDoc(doc(db, 'auditLogs', fullLog.logId), fullLog);
     } catch (e) {
       console.warn('Sync audit log:', e);
+    }
+  }
+
+  public getMysteryBoxConfig(boxId: 'points_box' | 'birthday_box'): MysteryBoxConfig | undefined {
+    return this.mysteryBoxConfigs.find((b) => b.boxId === boxId);
+  }
+
+  public async saveMysteryBoxConfig(config: MysteryBoxConfig): Promise<void> {
+    const idx = this.mysteryBoxConfigs.findIndex((b) => b.boxId === config.boxId);
+    const updated = { ...config, updatedAt: new Date().toISOString() };
+    if (idx !== -1) {
+      this.mysteryBoxConfigs[idx] = updated;
+    } else {
+      this.mysteryBoxConfigs.push(updated);
+    }
+    saveStored('mysteryBoxConfigs', this.mysteryBoxConfigs);
+    this.notify();
+    try {
+      const db = getFirebaseDb();
+      await setDoc(doc(db, 'mysteryBoxConfigs', config.boxId), updated);
+    } catch (e) {
+      console.warn('Sync mystery box config error:', e);
+    }
+  }
+
+  public async recordMysteryBoxRedemption(rec: MysteryBoxRedemptionRecord): Promise<void> {
+    this.mysteryBoxRedemptions.unshift(rec);
+    saveStored('mysteryBoxRedemptions', this.mysteryBoxRedemptions);
+    this.notify();
+    try {
+      const db = getFirebaseDb();
+      await setDoc(doc(db, 'mysteryBoxRedemptions', rec.redemptionId), rec);
+    } catch (e) {
+      console.warn('Sync mystery box redemption error:', e);
     }
   }
 }

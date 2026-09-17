@@ -80,10 +80,45 @@ export function generateTemporaryPassword(length = 8): string {
 }
 
 /**
+ * Cleans invisible Unicode characters, LTR/RTL marks, zero-width spaces, and trims.
+ * Highly essential when users copy credentials from WhatsApp or mobile keyboards.
+ */
+export function cleanAuthInput(input: string | undefined | null): string {
+  if (!input) return '';
+  return input
+    .replace(/[\u200B-\u200D\uFEFF\u200E\u200F\u202A-\u202E\u00A0]/g, '')
+    .trim();
+}
+
+/**
+ * Validates a submitted password against stored credentials.
+ * For temporary passwords, allows both exact match and case-insensitive match
+ * to prevent mobile keyboard auto-capitalization errors.
+ */
+export function matchesCredential(
+  stored: string | undefined | null,
+  input: string | undefined | null,
+  isTemporary = false
+): boolean {
+  const cleanStored = cleanAuthInput(stored);
+  const cleanInput = cleanAuthInput(input);
+  if (!cleanStored || !cleanInput) return false;
+
+  if (cleanStored === cleanInput) return true;
+
+  // Case-insensitive tolerance for temporary passwords on mobile keyboards
+  if (isTemporary && cleanStored.toLowerCase() === cleanInput.toLowerCase()) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Normalizes user code for case-insensitive and punctuation-tolerant lookup.
  */
 export function normalizeChurchCode(code: string): string {
-  return code.trim().toUpperCase().replace(/[_\s]/g, '-');
+  return cleanAuthInput(code).toUpperCase().replace(/[_\s]/g, '-');
 }
 
 /**

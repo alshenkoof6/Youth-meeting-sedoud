@@ -10,7 +10,11 @@ import {
   Mail, 
   CheckCircle2, 
   ShieldCheck,
-  X
+  X,
+  KeyRound,
+  RotateCcw,
+  IdCard,
+  ShoppingBag
 } from 'lucide-react';
 import { UserProfile, UserRole } from '../../types';
 import { generateNextChurchCode, generateTemporaryPassword } from '../../utils/churchAuthUtils';
@@ -80,6 +84,7 @@ export const AdminServants: React.FC = () => {
         thu: 'available',
         fri: 'available',
       },
+      password: tempPassword,
       temporaryPassword: tempPassword,
       mustChangePassword: true,
       notes: newNotes.trim() || undefined,
@@ -121,6 +126,36 @@ export const AdminServants: React.FC = () => {
     setCreatedSuccessData({
       user: newServant,
       temporaryPassword: tempPassword,
+    });
+  };
+
+  const handleResetServantPassword = async (servant: UserProfile) => {
+    if (!isAdmin) return;
+    const newTemp = generateTemporaryPassword(8);
+    const updated: UserProfile = {
+      ...servant,
+      password: newTemp,
+      temporaryPassword: newTemp,
+      mustChangePassword: true,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await dataStore.updateUser(updated);
+
+    if (currentUser) {
+      await dataStore.logAudit({
+        actorId: currentUser.userId,
+        actorName: currentUser.displayName,
+        actorRole: role,
+        action: `إعادة تعيين كلمة المرور المؤقتة للخادم: ${servant.displayName} (${servant.userCode})`,
+        targetCollection: 'users',
+        targetId: servant.userId,
+      });
+    }
+
+    setCreatedSuccessData({
+      user: updated,
+      temporaryPassword: newTemp,
     });
   };
 
@@ -184,67 +219,110 @@ export const AdminServants: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-slate-500 font-mono">
-                    {item.servant.phoneNumber}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    <span className="text-xs text-slate-500 font-mono flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-slate-400" />
+                      {item.servant.phoneNumber}
+                    </span>
+                    {item.servant.userCode && (
+                      <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        كود: {item.servant.userCode}
+                      </span>
+                    )}
+                  </div>
+                  {item.servant.mustChangePassword && item.servant.temporaryPassword && (
+                    <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-[11px] font-mono text-amber-800 dark:text-amber-300">
+                      <KeyRound className="w-3 h-3 text-amber-600" />
+                      <span>مؤقتة: <strong className="font-bold">{item.servant.temporaryPassword}</strong></span>
+                    </div>
+                  )}
                 </div>
 
-                <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold shrink-0">
                   {item.servant.displayName.charAt(0)}
                 </div>
               </div>
 
-              {/* Stats Bar */}
-              <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
-                <div>
-                  <span className="text-slate-400 block text-[10px]">المخدومين</span>
-                  <strong className="text-slate-900 dark:text-white text-sm font-black">
-                    {item.assignedCount}
-                  </strong>
+              {item.servant.role === 'canteen_servant' ? (
+                <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-900/50 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+                  <ShoppingBag className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block">مسؤول كانتين الكنيسة</span>
+                    <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-0.5 leading-relaxed">
+                      صلاحيات فحص واستبدال قسائم نقاط الشباب عبر QR، وإدارة الهدايا وسجل الصرف المعتمد.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">منتظمين</span>
-                  <strong className="text-emerald-600 text-sm font-black">
-                    {item.regularCount}
-                  </strong>
-                </div>
-                <div>
-                  <span className="text-slate-400 block text-[10px]">بحاجة لافتقاد</span>
-                  <strong className="text-rose-600 text-sm font-black">
-                    {item.urgentCount}
-                  </strong>
-                </div>
-              </div>
+              ) : (
+                <>
+                  {/* Stats Bar */}
+                  <div className="grid grid-cols-3 gap-2 text-center text-xs py-2 bg-slate-50 dark:bg-slate-800/60 rounded-2xl">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">المخدومين</span>
+                      <strong className="text-slate-900 dark:text-white text-sm font-black">
+                        {item.assignedCount}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">منتظمين</span>
+                      <strong className="text-emerald-600 text-sm font-black">
+                        {item.regularCount}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">بحاجة لافتقاد</span>
+                      <strong className="text-rose-600 text-sm font-black">
+                        {item.urgentCount}
+                      </strong>
+                    </div>
+                  </div>
 
-              {/* Sample Youth Names */}
-              <div className="space-y-1">
-                <span className="text-[11px] font-semibold text-slate-400 block">
-                  عينة من أسرته:
-                </span>
-                <div className="flex flex-wrap gap-1">
-                  {item.assignedYouth.slice(0, 4).map((y) => (
-                    <span
-                      key={y.userId}
-                      className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                    >
-                      {y.displayName.split(' ')[0]} {y.displayName.split(' ')[1] || ''}
+                  {/* Sample Youth Names */}
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-semibold text-slate-400 block">
+                      عينة من أسرته:
                     </span>
-                  ))}
-                  {item.assignedCount > 4 && (
-                    <span className="text-[10px] px-1.5 py-0.5 text-slate-400">
-                      +{item.assignedCount - 4} آخرين
-                    </span>
-                  )}
-                </div>
-              </div>
+                    <div className="flex flex-wrap gap-1">
+                      {item.assignedYouth.slice(0, 4).map((y) => (
+                        <span
+                          key={y.userId}
+                          className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                        >
+                          {y.displayName.split(' ')[0]} {y.displayName.split(' ')[1] || ''}
+                        </span>
+                      ))}
+                      {item.assignedCount > 4 && (
+                        <span className="text-[10px] px-1.5 py-0.5 text-slate-400">
+                          +{item.assignedCount - 4} آخرين
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
-            <button
-              onClick={() => setSelectedServant(item.servant)}
-              className="w-full py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition"
-            >
-              عرض قائمة مخدوميه بالكامل
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleResetServantPassword(item.servant)}
+                  className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
+                  title="إعادة تعيين كلمة المرور المؤقتة ومشاركتها عبر واتساب"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                  <span>بيانات الدخول / كلمة مؤقتة</span>
+                </button>
+              )}
+              {item.servant.role !== 'canteen_servant' && (
+                <button
+                  onClick={() => setSelectedServant(item.servant)}
+                  className="flex-1 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-xl text-xs font-bold transition flex items-center justify-center"
+                >
+                  قائمة مخدوميه
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>

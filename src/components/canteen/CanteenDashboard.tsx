@@ -16,7 +16,8 @@ import {
   XCircle,
   ShieldCheck,
   User,
-  Ticket
+  Ticket,
+  Gift
 } from 'lucide-react';
 import { CanteenScannerModal } from './CanteenScannerModal';
 
@@ -115,6 +116,14 @@ export const CanteenDashboard: React.FC<{ setActiveView: (view: string) => void 
           >
             <Coffee className="w-4 h-4" />
             <span>إدارة منتجات الكانتين</span>
+          </button>
+          <button
+            id="manage-canteen-mystery-boxes-btn"
+            onClick={() => setActiveView('canteen-mystery-boxes')}
+            className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-md transition"
+          >
+            <Gift className="w-4 h-4" />
+            <span>صناديق المفاجآت 🎁</span>
           </button>
         </div>
       </div>

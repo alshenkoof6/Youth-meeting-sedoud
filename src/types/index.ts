@@ -186,11 +186,13 @@ export interface PointTransaction {
   type: 'attendance' | 'event' | 'competition' | 'reward_redemption' | 'redemption' | 'manual_adjustment' | 'refund';
   sourceId?: string;
   points: number; // positive or negative
-  description: string;
+  description?: string;
+  reason?: string;
   referenceId?: string;
   reversalOf?: string;
-  createdAt: string;
-  createdBy: string;
+  createdAt?: string;
+  timestamp?: string;
+  createdBy?: string;
 }
 
 export interface RewardItem {
@@ -226,6 +228,10 @@ export interface Voucher {
   redeemedByName?: string;
   redemptionLocation?: string;
   cancellationReason?: string;
+  source?: 'regular_reward' | 'points_mystery_box' | 'birthday_mystery_box';
+  boxId?: string;
+  boxType?: 'points' | 'birthday';
+  rewardValueSnapshot?: number; // approximate value in EGP
   createdAt: string;
   updatedAt: string;
 }
@@ -239,10 +245,56 @@ export interface RewardRedemption {
   userId: string;
   userNameSnapshot: string;
   pointsCost: number;
+  source?: 'regular_reward' | 'points_mystery_box' | 'birthday_mystery_box';
+  boxType?: 'points' | 'birthday';
+  rewardValueSnapshot?: number;
   redeemedBy: string;
   redeemedByName?: string;
   redeemedAt: string;
   status: 'success' | 'cancelled';
+}
+
+export interface MysteryBoxReward {
+  rewardId: string;
+  name: string;
+  icon: string; // emoji e.g. 🍪, 🥤, 🍟, 🖊️, 🎲, 🎁
+  imageUrl?: string;
+  approximateValue: number; // approximate price in EGP
+  probability: number; // percentage integer or float, e.g. 40 for 40%
+  stock: number;
+  isActive: boolean;
+  timesWon: number;
+}
+
+export interface MysteryBoxConfig {
+  boxId: 'points_box' | 'birthday_box';
+  title: string;
+  description: string;
+  isActive: boolean;
+  costInPoints: number; // e.g. 200 for points box, 0 for birthday
+  rewards: MysteryBoxReward[];
+  birthdayAvailabilityDays?: number; // default 7 days
+  maxPerYearPerUser?: number; // default 1
+  updatedAt: string;
+  updatedBy?: string;
+}
+
+export interface MysteryBoxRedemptionRecord {
+  redemptionId: string;
+  userId: string;
+  userName: string;
+  boxId: 'points_box' | 'birthday_box';
+  boxType: 'points' | 'birthday';
+  costInPoints: number;
+  rewardId: string;
+  rewardName: string;
+  rewardIcon: string;
+  rewardValue: number; // approximate value in EGP
+  timestamp: string;
+  status: 'success' | 'cancelled';
+  voucherId: string;
+  voucherCode: string;
+  birthdayYear?: number; // for birthday box e.g. 2026
 }
 
 export interface Coupon {

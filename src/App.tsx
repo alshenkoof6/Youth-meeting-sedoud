@@ -31,6 +31,7 @@ import { AdminSettings } from './components/admin/AdminSettings';
 // Canteen Views
 import { CanteenDashboard } from './components/canteen/CanteenDashboard';
 import { CanteenRewards } from './components/canteen/CanteenRewards';
+import { CanteenMysteryBoxes } from './components/canteen/CanteenMysteryBoxes';
 
 // Unified Modules (Calendar, Birthdays, Audit Logs)
 import { UnifiedCalendar } from './components/calendar/UnifiedCalendar';
@@ -181,6 +182,9 @@ const MainAppContent: React.FC = () => {
               )}
               {activeView === 'canteen-rewards' && (
                 <CanteenRewards setActiveView={setActiveView} />
+              )}
+              {activeView === 'canteen-mystery-boxes' && (
+                <CanteenMysteryBoxes currentUser={currentUser} />
               )}
 
               {/* UNIFIED MODULES (CALENDAR, BIRTHDAYS, AUDIT LOGS) */}
