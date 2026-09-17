@@ -62,8 +62,8 @@ export const BirthdayDashboard: React.FC = () => {
   const getWhatsAppMessage = (item: BirthdayInfo) => {
     const isToday = item.isToday;
     const text = isToday
-      ? `كل سنة وأنت طيب يا ${item.user.displayName} بمناسبة عيد ميلادك 🎉! كنيستك وخدمة الشباب بتتمنالك سنة مباركة ومملوءة ببركة ونعمة ربنا يسوع المسيح 🎂✝️`
-      : `كل سنة وأنت طيب مقدماً يا ${item.user.displayName} بمناسبة قرب عيد ميلادك يوم ${item.formattedDateArabic} 🎉! سنة جديدة ممتلئة بالسلام والبركة ✝️`;
+      ? `كل سنة وأنت طيب يا ${item.user.displayName} بمناسبة عيد ميلادك 🎉! إجتماع الشباب بكنيسة السيدة العذراء مريم بسدود بيتمنالك سنة مباركة ومملوءة ببركة ونعمة ربنا يسوع المسيح 🎂✝️`
+      : `كل سنة وأنت طيب مقدماً يا ${item.user.displayName} بمناسبة قرب عيد ميلادك يوم ${item.formattedDateArabic} 🎉! إجتماع الشباب بكنيسة السيدة العذراء مريم بسدود بيتمنالك سنة جديدة ممتلئة بالسلام والبركة ✝️`;
     return encodeURIComponent(text);
   };
 

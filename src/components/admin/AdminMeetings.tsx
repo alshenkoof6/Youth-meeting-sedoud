@@ -455,7 +455,7 @@ export const AdminMeetings: React.FC = () => {
                   type="text"
                   value={newSpeaker}
                   onChange={(e) => setNewSpeaker(e.target.value)}
-                  placeholder="مثال: القس يوحنا ميخائيل"
+                  placeholder="مثال: أبونا مكسيموس يوسف"
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>

@@ -33,7 +33,7 @@ export const AccountCreationSuccessModal: React.FC<AccountCreationSuccessModalPr
   const roleTitle = isYouth ? 'مخدوم جديد' : user.role === 'admin' ? 'أمين خدمة' : 'خادم';
 
   const shareText = `سلام ونعمة يا ${user.displayName} ⛪
-مرحباً بك في اجتماع الشباب بكنيسة القديسة مريم!
+مرحباً بك في إجتماع الشباب بكنيسة السيدة العذراء مريم بسدود!
 تم إنشاء حسابك في منظومة الاجتماع بنجاح:
 
 🔹 الكود الكنسي: ${user.userCode}

@@ -174,7 +174,7 @@ export const YouthActivities: React.FC = () => {
                     
                     {/* WhatsApp Coordinator Button */}
                     <a
-                      href={`https://wa.me/${trip.coordinatorWhatsapp}?text=${encodeURIComponent(`سلام، أود الاستفسار بخصوص ${trip.title}`)}`}
+                      href={`https://wa.me/${trip.coordinatorWhatsapp}?text=${encodeURIComponent(`سلام ونعمة، بخصوص رحلة إجتماع الشباب بكنيسة السيدة العذراء مريم بسدود (${trip.title})، أود الاستفسار والتسجيل`)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 text-xs font-bold transition"

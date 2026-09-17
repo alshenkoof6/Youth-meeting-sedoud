@@ -755,7 +755,7 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
             {/* Quick Actions Footer */}
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3">
               <a
-                href={`https://wa.me/?text=${encodeURIComponent(`تذكير بحدث خدمة الشباب: ${selectedEvent.title} يوم ${selectedEvent.date} في ${selectedEvent.location}`)}`}
+                href={`https://wa.me/?text=${encodeURIComponent(`تذكير من إجتماع الشباب بكنيسة السيدة العذراء مريم بسدود: ${selectedEvent.title} يوم ${selectedEvent.date} في ${selectedEvent.location}`)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold hover:bg-emerald-100 transition"

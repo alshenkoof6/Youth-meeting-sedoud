@@ -87,7 +87,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenScan, activeView, setActiv
                   مباشر
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">منصة الحضور الذكي والافتقاد والكانتين</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">كنيسة السيدة العذراء مريم بسدود</p>
             </div>
           </div>
 

@@ -224,7 +224,7 @@ export const AdminFollowUp: React.FC = () => {
               : 'bg-amber-100 text-amber-800 border-amber-300';
 
             const whatsappMessage = encodeURIComponent(
-              `سلام ونعمة يا ${youth.nickname || youth.displayName.split(' ')[0]}، بنطمن عليك وافتقدناك جداً في اجتماع الشباب. يارب تكون بألف خير!`
+              `سلام ونعمة يا ${youth.nickname || youth.displayName.split(' ')[0]}، بنطمن عليك وافتقدناك جداً في إجتماع الشباب بكنيسة السيدة العذراء مريم بسدود. يارب تكون بألف خير!`
             );
 
             return (

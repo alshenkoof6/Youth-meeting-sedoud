@@ -147,7 +147,7 @@ export class DataStore {
   private loadLocal() {
     this.users = getStored('users', INITIAL_USERS);
     
-    // Ensure all seed accounts from INITIAL_USERS (especially canteen_servant_01) exist in users
+    // Ensure all seed accounts from INITIAL_USERS exist in users with latest credentials and names
     let usersUpdated = false;
     for (const initUser of INITIAL_USERS) {
       const idx = this.users.findIndex((u) => u.userId === initUser.userId);
@@ -157,6 +157,10 @@ export class DataStore {
       } else {
         if (!this.users[idx].password && initUser.password) {
           this.users[idx].password = initUser.password;
+          usersUpdated = true;
+        }
+        if (initUser.userId === 'admin_abouna_01' && this.users[idx].displayName !== initUser.displayName) {
+          this.users[idx] = { ...this.users[idx], displayName: initUser.displayName };
           usersUpdated = true;
         }
         if (initUser.role === 'canteen_servant' && this.users[idx].role !== 'canteen_servant') {
@@ -170,6 +174,17 @@ export class DataStore {
     }
 
     this.meetings = getStored('meetings', INITIAL_MEETINGS);
+    // Ensure meetings reflect updated priest name
+    let meetingsUpdated = false;
+    for (const m of this.meetings) {
+      if (m.speaker && (m.speaker.includes('يوحنا مرقس') || m.speaker.includes('يوحنا'))) {
+        m.speaker = 'أبونا مكسيموس يوسف';
+        meetingsUpdated = true;
+      }
+    }
+    if (meetingsUpdated) {
+      saveStored('meetings', this.meetings);
+    }
     this.trips = getStored('trips', INITIAL_TRIPS);
     this.tripBookings = getStored('tripBookings', []);
     this.events = getStored('events', INITIAL_EVENTS);
@@ -237,50 +252,77 @@ export class DataStore {
     try {
       const db = getFirebaseDb();
 
-      // Seed initial data to Firestore if empty
-      const usersSnap = await getDocs(collection(db, 'users'));
-      if (usersSnap.empty) {
-        for (const user of INITIAL_USERS) {
-          await setDoc(doc(db, 'users', user.userId), user);
+      // Seed initial data to Firestore if empty (safely ignored if offline or unauthenticated)
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        if (usersSnap.empty) {
+          for (const user of INITIAL_USERS) {
+            await setDoc(doc(db, 'users', user.userId), user);
+          }
+          for (const meeting of INITIAL_MEETINGS) {
+            await setDoc(doc(db, 'meetings', meeting.meetingId), meeting);
+          }
+          for (const trip of INITIAL_TRIPS) {
+            await setDoc(doc(db, 'trips', trip.tripId), trip);
+          }
+          for (const evt of INITIAL_EVENTS) {
+            await setDoc(doc(db, 'events', evt.eventId), evt);
+          }
+          for (const anc of INITIAL_ANNOUNCEMENTS) {
+            await setDoc(doc(db, 'announcements', anc.announcementId), anc);
+          }
+          for (const rew of INITIAL_REWARDS) {
+            await setDoc(doc(db, 'rewards', rew.rewardId), rew);
+          }
+          for (const att of INITIAL_ATTENDANCE) {
+            await setDoc(doc(db, 'attendance', att.attendanceId), att);
+          }
+          for (const fup of INITIAL_FOLLOWUPS) {
+            await setDoc(doc(db, 'followups', fup.followupId), fup);
+          }
+          await setDoc(doc(db, 'settings', 'general'), INITIAL_SETTINGS);
         }
-        for (const meeting of INITIAL_MEETINGS) {
-          await setDoc(doc(db, 'meetings', meeting.meetingId), meeting);
+
+        // Ensure seed users exist in Firestore
+        for (const initUser of INITIAL_USERS) {
+          getDoc(doc(db, 'users', initUser.userId)).then((snap) => {
+            if (!snap.exists()) {
+              setDoc(doc(db, 'users', initUser.userId), initUser).catch(() => {});
+            }
+          }).catch(() => {});
         }
-        for (const trip of INITIAL_TRIPS) {
-          await setDoc(doc(db, 'trips', trip.tripId), trip);
-        }
-        for (const evt of INITIAL_EVENTS) {
-          await setDoc(doc(db, 'events', evt.eventId), evt);
-        }
-        for (const anc of INITIAL_ANNOUNCEMENTS) {
-          await setDoc(doc(db, 'announcements', anc.announcementId), anc);
-        }
-        for (const rew of INITIAL_REWARDS) {
-          await setDoc(doc(db, 'rewards', rew.rewardId), rew);
-        }
-        for (const att of INITIAL_ATTENDANCE) {
-          await setDoc(doc(db, 'attendance', att.attendanceId), att);
-        }
-        for (const fup of INITIAL_FOLLOWUPS) {
-          await setDoc(doc(db, 'followups', fup.followupId), fup);
-        }
-        await setDoc(doc(db, 'settings', 'general'), INITIAL_SETTINGS);
+      } catch (seedErr: any) {
+        // Fallback gracefully to offline cache if backend is temporarily unavailable or waiting for auth
+        console.warn('[Firestore] Seed/connectivity notice (operating in offline/local cache mode):', seedErr?.message || seedErr);
       }
 
-      // Ensure seed users (specifically canteen_servant_01 and essential roles) exist in Firestore
-      for (const initUser of INITIAL_USERS) {
-        getDoc(doc(db, 'users', initUser.userId)).then((snap) => {
-          if (!snap.exists()) {
-            setDoc(doc(db, 'users', initUser.userId), initUser).catch(() => {});
-          }
-        }).catch(() => {});
-      }
+      // Safe snapshot listener helper with error callback to prevent unhandled Firestore errors
+      const attachListener = (collectionName: string, onUpdate: (snap: any) => void) => {
+        try {
+          return onSnapshot(
+            collection(db, collectionName),
+            (snap) => {
+              try {
+                onUpdate(snap);
+              } catch (e) {
+                console.warn(`[Firestore] Error processing update for ${collectionName}:`, e);
+              }
+            },
+            (error) => {
+              // Critical: handle error without throwing unhandled exceptions when offline or connecting
+              console.warn(`[Firestore] ${collectionName} listener status (${error.code}): Operating with cached data.`);
+            }
+          );
+        } catch (e) {
+          console.warn(`[Firestore] Could not attach listener for ${collectionName}:`, e);
+          return () => {};
+        }
+      };
 
       // Set up real-time listener for users
-      onSnapshot(collection(db, 'users'), (snap) => {
+      attachListener('users', (snap) => {
         if (!snap.empty) {
-          const remoteUsers = snap.docs.map((d) => d.data() as UserProfile);
-          // Ensure essential seed users are never missing from local memory
+          const remoteUsers = snap.docs.map((d: any) => d.data() as UserProfile);
           for (const initUser of INITIAL_USERS) {
             if (!remoteUsers.some((u) => u.userId === initUser.userId)) {
               remoteUsers.push(initUser);
@@ -294,108 +336,108 @@ export class DataStore {
       });
 
       // Meetings listener
-      onSnapshot(collection(db, 'meetings'), (snap) => {
+      attachListener('meetings', (snap) => {
         if (!snap.empty) {
-          this.meetings = snap.docs.map((d) => d.data() as Meeting);
+          this.meetings = snap.docs.map((d: any) => d.data() as Meeting);
           saveStored('meetings', this.meetings);
           this.notify();
         }
       });
 
       // Attendance listener
-      onSnapshot(collection(db, 'attendance'), (snap) => {
+      attachListener('attendance', (snap) => {
         if (!snap.empty) {
-          this.attendance = snap.docs.map((d) => d.data() as AttendanceRecord);
+          this.attendance = snap.docs.map((d: any) => d.data() as AttendanceRecord);
           saveStored('attendance', this.attendance);
           this.notify();
         }
       });
 
       // Follow-ups listener
-      onSnapshot(collection(db, 'followups'), (snap) => {
+      attachListener('followups', (snap) => {
         if (!snap.empty) {
-          this.followups = snap.docs.map((d) => d.data() as FollowUpRecord);
+          this.followups = snap.docs.map((d: any) => d.data() as FollowUpRecord);
           saveStored('followups', this.followups);
           this.notify();
         }
       });
 
       // Trips listener
-      onSnapshot(collection(db, 'trips'), (snap) => {
+      attachListener('trips', (snap) => {
         if (!snap.empty) {
-          this.trips = snap.docs.map((d) => d.data() as Trip);
+          this.trips = snap.docs.map((d: any) => d.data() as Trip);
           saveStored('trips', this.trips);
           this.notify();
         }
       });
 
       // Trip bookings listener
-      onSnapshot(collection(db, 'tripBookings'), (snap) => {
+      attachListener('tripBookings', (snap) => {
         if (!snap.empty) {
-          this.tripBookings = snap.docs.map((d) => d.data() as TripBooking);
+          this.tripBookings = snap.docs.map((d: any) => d.data() as TripBooking);
           saveStored('tripBookings', this.tripBookings);
           this.notify();
         }
       });
 
       // Announcements listener
-      onSnapshot(collection(db, 'announcements'), (snap) => {
+      attachListener('announcements', (snap) => {
         if (!snap.empty) {
-          this.announcements = snap.docs.map((d) => d.data() as Announcement);
+          this.announcements = snap.docs.map((d: any) => d.data() as Announcement);
           saveStored('announcements', this.announcements);
           this.notify();
         }
       });
 
       // Rewards listener
-      onSnapshot(collection(db, 'rewards'), (snap) => {
+      attachListener('rewards', (snap) => {
         if (!snap.empty) {
-          this.rewards = snap.docs.map((d) => d.data() as RewardItem);
+          this.rewards = snap.docs.map((d: any) => d.data() as RewardItem);
           saveStored('rewards', this.rewards);
           this.notify();
         }
       });
 
       // Coupons listener
-      onSnapshot(collection(db, 'coupons'), (snap) => {
+      attachListener('coupons', (snap) => {
         if (!snap.empty) {
-          this.coupons = snap.docs.map((d) => d.data() as Coupon);
+          this.coupons = snap.docs.map((d: any) => d.data() as Coupon);
           saveStored('coupons', this.coupons);
           this.notify();
         }
       });
 
       // Vouchers listener
-      onSnapshot(collection(db, 'vouchers'), (snap) => {
+      attachListener('vouchers', (snap) => {
         if (!snap.empty) {
-          this.vouchers = snap.docs.map((d) => d.data() as Voucher);
+          this.vouchers = snap.docs.map((d: any) => d.data() as Voucher);
           saveStored('vouchers', this.vouchers);
           this.notify();
         }
       });
 
       // Point Transactions listener
-      onSnapshot(collection(db, 'pointTransactions'), (snap) => {
+      attachListener('pointTransactions', (snap) => {
         if (!snap.empty) {
-          this.pointTransactions = snap.docs.map((d) => d.data() as PointTransaction);
+          this.pointTransactions = snap.docs.map((d: any) => d.data() as PointTransaction);
           saveStored('pointTransactions', this.pointTransactions);
           this.notify();
         }
       });
 
       // Feedback listener
-      onSnapshot(collection(db, 'feedback'), (snap) => {
+      attachListener('feedback', (snap) => {
         if (!snap.empty) {
-          this.feedback = snap.docs.map((d) => d.data() as MeetingFeedback);
+          this.feedback = snap.docs.map((d: any) => d.data() as MeetingFeedback);
           saveStored('feedback', this.feedback);
           this.notify();
         }
       });
 
       // Audit logs listener
-      onSnapshot(collection(db, 'auditLogs'), (snap) => {
+      attachListener('auditLogs', (snap) => {
         if (!snap.empty) {
-          this.auditLogs = snap.docs.map((d) => d.data() as AuditLog);
+          this.auditLogs = snap.docs.map((d: any) => d.data() as AuditLog);
           saveStored('auditLogs', this.auditLogs);
           this.notify();
         }

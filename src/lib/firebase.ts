@@ -1,6 +1,12 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import {
+  initializeFirestore,
+  getFirestore,
+  Firestore,
+  persistentLocalCache,
+  persistentMultipleTabManager
+} from 'firebase/firestore';
 import firebaseConfigJson from '../../firebase-applet-config.json';
 
 let app: FirebaseApp | null = null;
@@ -39,21 +45,24 @@ export function getFirebaseDb(): Firestore {
       ? firebaseConfigJson.firestoreDatabaseId
       : undefined;
     
-    db = databaseId ? getFirestore(firebaseApp, databaseId) : getFirestore(firebaseApp);
-
-    // Attempt offline persistence
-    if (typeof window !== 'undefined') {
-      try {
-        enableIndexedDbPersistence(db).catch((err) => {
-          if (err.code === 'failed-precondition') {
-            console.warn('Firestore persistence failed: Multiple tabs open');
-          } else if (err.code === 'unimplemented') {
-            console.warn('Firestore persistence is not supported by this browser');
-          }
-        });
-      } catch {
-        // Safe ignore
+    try {
+      if (typeof window !== 'undefined') {
+        db = initializeFirestore(
+          firebaseApp,
+          {
+            localCache: persistentLocalCache({
+              tabManager: persistentMultipleTabManager()
+            }),
+            experimentalAutoDetectLongPolling: true,
+          },
+          databaseId
+        );
+      } else {
+        db = databaseId ? getFirestore(firebaseApp, databaseId) : getFirestore(firebaseApp);
       }
+    } catch {
+      // Fallback to getFirestore if already initialized or custom settings unsupported
+      db = databaseId ? getFirestore(firebaseApp, databaseId) : getFirestore(firebaseApp);
     }
   }
   return db;
