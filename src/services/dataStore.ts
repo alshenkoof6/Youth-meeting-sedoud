@@ -31,7 +31,8 @@ import {
   SystemSettings,
   AuditLog,
   MysteryBoxConfig,
-  MysteryBoxRedemptionRecord
+  MysteryBoxRedemptionRecord,
+  GeneralEvent
 } from '../types';
 import { calculateYouthStreak, YouthStreakCalculation } from '../utils/streakCalculator';
 import {
@@ -75,6 +76,9 @@ export class DataStore {
   public trips: Trip[] = [];
   public tripBookings: TripBooking[] = [];
   public events: ChurchEvent[] = [];
+  public generalEvents: GeneralEvent[] = [];
+  public isSyncing: boolean = false;
+  public syncError: string | null = null;
   public announcements: Announcement[] = [];
   public rewards: RewardItem[] = [];
   public coupons: Coupon[] = [];
@@ -178,21 +182,11 @@ export class DataStore {
       saveStored('users', this.users);
     }
 
-    this.meetings = getStored('meetings', INITIAL_MEETINGS);
-    // Ensure meetings reflect updated priest name
-    let meetingsUpdated = false;
-    for (const m of this.meetings) {
-      if (m.speaker && (m.speaker.includes('يوحنا مرقس') || m.speaker.includes('يوحنا'))) {
-        m.speaker = 'أبونا مكسيموس يوسف';
-        meetingsUpdated = true;
-      }
-    }
-    if (meetingsUpdated) {
-      saveStored('meetings', this.meetings);
-    }
-    this.trips = getStored('trips', INITIAL_TRIPS);
+    this.meetings = getStored('meetings', []);
+    this.trips = getStored('trips', []);
     this.tripBookings = getStored('tripBookings', []);
-    this.events = getStored('events', INITIAL_EVENTS);
+    this.events = getStored('events', []);
+    this.generalEvents = getStored('generalEvents', []);
     this.announcements = getStored('announcements', INITIAL_ANNOUNCEMENTS);
     this.rewards = getStored('rewards', INITIAL_REWARDS);
     this.coupons = getStored('coupons', []);
@@ -207,6 +201,9 @@ export class DataStore {
     this.mysteryBoxConfigs = getStored('mysteryBoxConfigs', INITIAL_MYSTERY_BOXES);
     this.mysteryBoxRedemptions = getStored('mysteryBoxRedemptions', []);
     this.auditLogs = getStored('auditLogs', this.auditLogs);
+
+    // Run audit and cleanup of demo/seed records
+    this.cleanupDemoSeedData();
 
     // Auto migrate existing legacy coupons into vouchers if needed
     if (this.coupons.length > 0 && this.vouchers.length === 0) {
@@ -230,12 +227,129 @@ export class DataStore {
     }
   }
 
+  public cleanupDemoSeedData(): {
+    meetingsTotal: number;
+    activitiesTotal: number;
+    tripsTotal: number;
+    generalEventsTotal: number;
+    demoRecordsFound: { type: string; id: string; title: string; source: string }[];
+    cleanedCount: number;
+  } {
+    const DEMO_MEETING_IDS = new Set([
+      'meet_2026_09_17',
+      'meet_2026_09_24',
+      'meet_2026_09_10',
+      'meet_2026_09_03',
+      'meet_2026_08_27',
+      'meet_2026_08_20',
+      'meet_2026_08_13',
+    ]);
+    const DEMO_TRIP_IDS = new Set([
+      'trip_anba_antony_2026',
+      'trip_wadi_rayan_2026',
+    ]);
+    const DEMO_EVENT_IDS = new Set([
+      'evt_spiritual_day_2026',
+      'evt_sports_tournament_2026',
+    ]);
+
+    const demoRecordsFound: { type: string; id: string; title: string; source: string }[] = [];
+
+    const initialMeetingCount = this.meetings.length;
+    const initialTripCount = this.trips.length;
+    const initialEventCount = this.events.length;
+    const initialGeneralEventCount = this.generalEvents.length;
+
+    this.meetings.forEach((m) => {
+      if (DEMO_MEETING_IDS.has(m.meetingId)) {
+        demoRecordsFound.push({ type: 'Meeting', id: m.meetingId, title: m.title, source: 'Initial Seed Data (initialData.ts)' });
+      }
+    });
+
+    this.trips.forEach((t) => {
+      if (DEMO_TRIP_IDS.has(t.tripId)) {
+        demoRecordsFound.push({ type: 'Trip', id: t.tripId, title: t.title, source: 'Initial Seed Data (initialData.ts)' });
+      }
+    });
+
+    this.events.forEach((e) => {
+      if (DEMO_EVENT_IDS.has(e.eventId)) {
+        demoRecordsFound.push({ type: 'Activity/Event', id: e.eventId, title: e.title, source: 'Initial Seed Data (initialData.ts)' });
+      }
+    });
+
+    // Filter out confirmed demo records, preserving real user records
+    const realMeetings = this.meetings.filter((m) => !DEMO_MEETING_IDS.has(m.meetingId));
+    const realTrips = this.trips.filter((t) => !DEMO_TRIP_IDS.has(t.tripId));
+    const realEvents = this.events.filter((e) => !DEMO_EVENT_IDS.has(e.eventId));
+
+    const meetingsDeleted = initialMeetingCount - realMeetings.length;
+    const tripsDeleted = initialTripCount - realTrips.length;
+    const eventsDeleted = initialEventCount - realEvents.length;
+    const cleanedCount = meetingsDeleted + tripsDeleted + eventsDeleted;
+
+    if (cleanedCount > 0 || demoRecordsFound.length > 0) {
+      console.group('🧹 [Data Integrity Audit & Demo Cleanup Report]');
+      console.log(`Meetings Count: ${initialMeetingCount} (Demo: ${meetingsDeleted}, Real: ${realMeetings.length})`);
+      console.log(`Activities Count: ${initialEventCount} (Demo: ${eventsDeleted}, Real: ${realEvents.length})`);
+      console.log(`Trips Count: ${initialTripCount} (Demo: ${tripsDeleted}, Real: ${realTrips.length})`);
+      console.log(`General Events Count: ${initialGeneralEventCount} (Real: ${initialGeneralEventCount})`);
+      console.log('Classified Demo/Seed Records:', demoRecordsFound);
+      console.groupEnd();
+    }
+
+    this.meetings = realMeetings;
+    this.trips = realTrips;
+    this.events = realEvents;
+
+    saveStored('meetings', this.meetings);
+    saveStored('trips', this.trips);
+    saveStored('events', this.events);
+
+    return {
+      meetingsTotal: realMeetings.length,
+      activitiesTotal: realEvents.length,
+      tripsTotal: realTrips.length,
+      generalEventsTotal: this.generalEvents.length,
+      demoRecordsFound,
+      cleanedCount,
+    };
+  }
+
+  public async retrySync(): Promise<void> {
+    this.syncError = null;
+    this.isSyncing = true;
+    this.notify();
+    try {
+      const db = getFirebaseDb();
+      const [meetingsSnap, eventsSnap, tripsSnap, generalSnap] = await Promise.all([
+        getDocs(collection(db, 'meetings')),
+        getDocs(collection(db, 'events')),
+        getDocs(collection(db, 'trips')),
+        getDocs(collection(db, 'generalEvents')),
+      ]);
+      this.meetings = meetingsSnap.docs.map((d) => d.data() as Meeting);
+      this.events = eventsSnap.docs.map((d) => d.data() as ChurchEvent);
+      this.trips = tripsSnap.docs.map((d) => d.data() as Trip);
+      this.generalEvents = generalSnap.docs.map((d) => d.data() as GeneralEvent);
+      this.saveAllLocal();
+      this.syncError = null;
+    } catch (err: any) {
+      console.warn('Manual sync retry error:', err);
+      this.syncError = err?.message || 'Unable to load calendar data';
+    } finally {
+      this.isSyncing = false;
+      this.notify();
+    }
+  }
+
   private saveAllLocal() {
     saveStored('users', this.users);
     saveStored('meetings', this.meetings);
     saveStored('trips', this.trips);
     saveStored('tripBookings', this.tripBookings);
     saveStored('events', this.events);
+    saveStored('generalEvents', this.generalEvents);
     saveStored('announcements', this.announcements);
     saveStored('rewards', this.rewards);
     saveStored('coupons', this.coupons);
@@ -268,26 +382,11 @@ export class DataStore {
           for (const user of INITIAL_USERS) {
             await setDoc(doc(db, 'users', user.userId), user);
           }
-          for (const meeting of INITIAL_MEETINGS) {
-            await setDoc(doc(db, 'meetings', meeting.meetingId), meeting);
-          }
-          for (const trip of INITIAL_TRIPS) {
-            await setDoc(doc(db, 'trips', trip.tripId), trip);
-          }
-          for (const evt of INITIAL_EVENTS) {
-            await setDoc(doc(db, 'events', evt.eventId), evt);
-          }
           for (const anc of INITIAL_ANNOUNCEMENTS) {
             await setDoc(doc(db, 'announcements', anc.announcementId), anc);
           }
           for (const rew of INITIAL_REWARDS) {
             await setDoc(doc(db, 'rewards', rew.rewardId), rew);
-          }
-          for (const att of INITIAL_ATTENDANCE) {
-            await setDoc(doc(db, 'attendance', att.attendanceId), att);
-          }
-          for (const fup of INITIAL_FOLLOWUPS) {
-            await setDoc(doc(db, 'followups', fup.followupId), fup);
           }
           await setDoc(doc(db, 'settings', 'general'), INITIAL_SETTINGS);
         }
@@ -318,12 +417,18 @@ export class DataStore {
               }
             },
             (error) => {
-              // Critical: handle error without throwing unhandled exceptions when offline or connecting
-              console.warn(`[Firestore] ${collectionName} listener status (${error.code}): Operating with cached data.`);
+              // Handle error without throwing unhandled exceptions
+              console.warn(`[Firestore] ${collectionName} listener status (${error.code}):`, error.message);
+              if (error.code === 'permission-denied' || error.code === 'unavailable') {
+                this.syncError = error.message;
+                this.notify();
+              }
             }
           );
-        } catch (e) {
+        } catch (e: any) {
           console.warn(`[Firestore] Could not attach listener for ${collectionName}:`, e);
+          this.syncError = e?.message || 'Listener failed';
+          this.notify();
           return () => {};
         }
       };
@@ -365,11 +470,23 @@ export class DataStore {
 
       // Meetings listener
       attachListener('meetings', (snap) => {
-        if (!snap.empty) {
-          this.meetings = snap.docs.map((d: any) => d.data() as Meeting);
-          saveStored('meetings', this.meetings);
-          this.notify();
-        }
+        this.meetings = snap.docs.map((d: any) => d.data() as Meeting);
+        saveStored('meetings', this.meetings);
+        this.notify();
+      });
+
+      // Events / Activities listener
+      attachListener('events', (snap) => {
+        this.events = snap.docs.map((d: any) => d.data() as ChurchEvent);
+        saveStored('events', this.events);
+        this.notify();
+      });
+
+      // General Events listener
+      attachListener('generalEvents', (snap) => {
+        this.generalEvents = snap.docs.map((d: any) => d.data() as GeneralEvent);
+        saveStored('generalEvents', this.generalEvents);
+        this.notify();
       });
 
       // Attendance listener
@@ -392,11 +509,9 @@ export class DataStore {
 
       // Trips listener
       attachListener('trips', (snap) => {
-        if (!snap.empty) {
-          this.trips = snap.docs.map((d: any) => d.data() as Trip);
-          saveStored('trips', this.trips);
-          this.notify();
-        }
+        this.trips = snap.docs.map((d: any) => d.data() as Trip);
+        saveStored('trips', this.trips);
+        this.notify();
       });
 
       // Trip bookings listener
@@ -615,24 +730,28 @@ export class DataStore {
       this.meetings.unshift(meeting);
     }
     this.saveAllLocal();
+    this.notify();
 
     try {
       const db = getFirebaseDb();
       await setDoc(doc(db, 'meetings', meeting.meetingId), meeting);
-    } catch (e) {
-      console.warn('Sync meeting to Firestore:', e);
+    } catch (e: any) {
+      console.warn('Sync meeting to Firestore error:', e);
+      throw e;
     }
   }
 
   public async deleteMeeting(meetingId: string): Promise<void> {
     this.meetings = this.meetings.filter((m) => m.meetingId !== meetingId);
     this.saveAllLocal();
+    this.notify();
 
     try {
       const db = getFirebaseDb();
       await deleteDoc(doc(db, 'meetings', meetingId));
-    } catch (e) {
-      console.warn('Sync delete meeting to Firestore:', e);
+    } catch (e: any) {
+      console.warn('Sync delete meeting to Firestore error:', e);
+      throw e;
     }
   }
 
@@ -688,6 +807,24 @@ export class DataStore {
   }
 
   // Trip booking
+  public async saveTrip(trip: Trip): Promise<void> {
+    const idx = this.trips.findIndex((t) => t.tripId === trip.tripId);
+    if (idx >= 0) {
+      this.trips[idx] = trip;
+    } else {
+      this.trips.unshift(trip);
+    }
+    this.saveAllLocal();
+    this.notify();
+    try {
+      const db = getFirebaseDb();
+      await setDoc(doc(db, 'trips', trip.tripId), trip);
+    } catch (e: any) {
+      console.warn('Sync trip error:', e);
+      throw e;
+    }
+  }
+
   public async bookTrip(tripId: string, user: UserProfile): Promise<{ success: boolean; message: string }> {
     const trip = this.trips.find((t) => t.tripId === tripId);
     if (!trip) return { success: false, message: 'الرحلة غير موجودة' };
@@ -904,11 +1041,13 @@ export class DataStore {
   public async createTrip(trip: Trip): Promise<void> {
     this.trips.unshift(trip);
     this.saveAllLocal();
+    this.notify();
     try {
       const db = getFirebaseDb();
       await setDoc(doc(db, 'trips', trip.tripId), trip);
-    } catch (e) {
+    } catch (e: any) {
       console.warn('Sync create trip:', e);
+      throw e;
     }
   }
 
@@ -920,11 +1059,13 @@ export class DataStore {
       this.events.unshift(event);
     }
     this.saveAllLocal();
+    this.notify();
     try {
       const db = getFirebaseDb();
       await setDoc(doc(db, 'events', event.eventId), event);
-    } catch (e) {
-      console.warn('Sync save event:', e);
+    } catch (e: any) {
+      console.warn('Sync save event error:', e);
+      throw e;
     }
   }
 
@@ -935,11 +1076,13 @@ export class DataStore {
   public async deleteEvent(eventId: string): Promise<void> {
     this.events = this.events.filter((e) => e.eventId !== eventId);
     this.saveAllLocal();
+    this.notify();
     try {
       const db = getFirebaseDb();
       await deleteDoc(doc(db, 'events', eventId));
-    } catch (e) {
-      console.warn('Sync delete event:', e);
+    } catch (e: any) {
+      console.warn('Sync delete event error:', e);
+      throw e;
     }
   }
 
@@ -1059,6 +1202,60 @@ export class DataStore {
       await setDoc(doc(db, 'mysteryBoxRedemptions', rec.redemptionId), rec);
     } catch (e) {
       console.warn('Sync mystery box redemption error:', e);
+    }
+  }
+
+  // General Events CRUD for Unified Calendar
+  public async saveGeneralEvent(event: GeneralEvent): Promise<void> {
+    const idx = this.generalEvents.findIndex((g) => g.id === event.id);
+    if (idx >= 0) {
+      this.generalEvents[idx] = { ...event, updatedAt: new Date().toISOString() };
+    } else {
+      this.generalEvents.unshift(event);
+    }
+    this.saveAllLocal();
+    this.notify();
+    try {
+      const db = getFirebaseDb();
+      await setDoc(doc(db, 'generalEvents', event.id), event);
+    } catch (e: any) {
+      console.error('Sync save general event error:', e);
+      throw e;
+    }
+  }
+
+  public async createGeneralEvent(event: GeneralEvent): Promise<void> {
+    return this.saveGeneralEvent(event);
+  }
+
+  public async updateGeneralEvent(event: GeneralEvent): Promise<void> {
+    return this.saveGeneralEvent(event);
+  }
+
+  public async deleteGeneralEvent(eventId: string): Promise<void> {
+    this.generalEvents = this.generalEvents.filter((g) => g.id !== eventId);
+    this.saveAllLocal();
+    this.notify();
+    try {
+      const db = getFirebaseDb();
+      await deleteDoc(doc(db, 'generalEvents', eventId));
+    } catch (e: any) {
+      console.error('Sync delete general event error:', e);
+      throw e;
+    }
+  }
+
+  // Trip Deletion for Unified Calendar & Trips System
+  public async deleteTrip(tripId: string): Promise<void> {
+    this.trips = this.trips.filter((t) => t.tripId !== tripId);
+    this.saveAllLocal();
+    this.notify();
+    try {
+      const db = getFirebaseDb();
+      await deleteDoc(doc(db, 'trips', tripId));
+    } catch (e: any) {
+      console.error('Sync delete trip error:', e);
+      throw e;
     }
   }
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { dataStore } from '../../services/dataStore';
 import { getUnifiedEvents, getUpcomingEvents, EVENT_TYPE_METADATA } from '../../utils/calendarUtils';
@@ -14,11 +14,25 @@ export const UpcomingEventsWidget: React.FC<UpcomingEventsWidgetProps> = ({
   maxItems = 3,
 }) => {
   const { currentUser } = useAuth();
+  const [, setStoreVersion] = useState(0);
 
-  const upcoming = React.useMemo(() => {
-    const unified = getUnifiedEvents(dataStore.meetings, dataStore.events, dataStore.trips, currentUser);
+  useEffect(() => {
+    const unsubscribe = dataStore.subscribe(() => {
+      setStoreVersion((v) => v + 1);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const upcoming = useMemo(() => {
+    const unified = getUnifiedEvents(
+      dataStore.meetings,
+      dataStore.events,
+      dataStore.trips,
+      dataStore.generalEvents,
+      currentUser
+    );
     return getUpcomingEvents(unified, maxItems);
-  }, [currentUser, maxItems]);
+  }, [currentUser, maxItems, dataStore.meetings, dataStore.events, dataStore.trips, dataStore.generalEvents]);
 
   const getDayLabel = (dateStr: string) => {
     const today = new Date().toISOString().slice(0, 10);

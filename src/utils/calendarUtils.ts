@@ -1,17 +1,23 @@
-import { Meeting, ChurchEvent, Trip, UserProfile } from '../types';
+import { Meeting, ChurchEvent, Trip, UserProfile, GeneralEvent } from '../types';
 import { CalendarEvent, UnifiedEventType } from '../types/calendar';
 
 export function mapMeetingToCalendarEvent(meeting: Meeting): CalendarEvent {
   return {
     id: `meeting_${meeting.meetingId}`,
+    type: 'meeting',
     sourceType: 'meeting',
     eventType: 'meeting',
+    sourceId: meeting.meetingId,
     title: meeting.title || 'اجتماع الشباب الأسبوعي',
     description: meeting.description || (meeting.topic ? `الموضوع: ${meeting.topic}${meeting.speaker ? ` - المتكلم: ${meeting.speaker}` : ''}` : meeting.notes),
+    startDate: meeting.date,
+    endDate: meeting.date,
     date: meeting.date,
-    startTime: meeting.startTime || '19:00',
-    endTime: meeting.endTime || '21:00',
+    startTime: meeting.startTime || '19:30',
+    endTime: meeting.endTime || '21:30',
     location: meeting.location || 'قاعة الاجتماعات الكبرى',
+    createdBy: meeting.createdBy || 'admin',
+    createdAt: meeting.createdAt || new Date().toISOString(),
     targetStages: meeting.targetStages || 'all',
     targetAudienceLabel: getTargetAudienceLabel(meeting.targetStages),
     speakerOrLeader: meeting.speaker,
@@ -21,40 +27,33 @@ export function mapMeetingToCalendarEvent(meeting: Meeting): CalendarEvent {
 }
 
 export function mapChurchEventToCalendarEvent(event: ChurchEvent): CalendarEvent {
-  let eventType: UnifiedEventType = 'activity';
-  const rawType = (event.type || '').toLowerCase();
-  
-  if (rawType.includes('spiritual') || rawType.includes('روحي') || rawType.includes('نهضة') || rawType.includes('قداس')) {
-    eventType = 'spiritual_day';
-  } else if (rawType.includes('conf') || rawType.includes('مؤتمر')) {
-    eventType = 'conference';
-  } else if (rawType.includes('important') || rawType.includes('عام') || rawType.includes('celebration') || rawType.includes('عيد')) {
-    eventType = 'important_event';
-  } else if (rawType.includes('meeting') || rawType.includes('اجتماع')) {
-    eventType = 'meeting';
-  } else {
-    eventType = 'activity';
-  }
-
   const capacity = event.capacity || 0;
   const booked = event.registeredCount || 0;
   const available = capacity > 0 ? Math.max(0, capacity - booked) : undefined;
 
   return {
-    id: `event_${event.eventId}`,
+    id: `activity_${event.eventId}`,
+    type: 'activity',
     sourceType: 'event',
-    eventType,
+    eventType: 'activity',
+    sourceId: event.eventId,
     title: event.title,
     description: event.description,
+    startDate: event.date,
+    endDate: event.date,
     date: event.date,
     startTime: event.time || '18:00',
+    endTime: event.time ? `${parseInt(event.time.slice(0, 2)) + 2 || 20}:00` : '20:00',
     location: event.location || 'مبنى الخدمات',
+    createdBy: event.createdAt ? 'admin' : 'admin',
+    createdAt: event.createdAt || new Date().toISOString(),
     targetStages: event.targetStages || 'all',
     targetAudienceLabel: getTargetAudienceLabel(event.targetStages),
     capacity: capacity > 0 ? capacity : undefined,
     bookedCount: booked,
     availableSeats: available,
     speakerOrLeader: event.speaker,
+    price: event.price,
     status: event.status === 'canceled' ? 'cancelled' : event.status === 'completed' ? 'completed' : 'upcoming',
     requiresRegistration: !!event.capacity,
   };
@@ -68,23 +67,55 @@ export function mapTripToCalendarEvent(trip: Trip): CalendarEvent {
 
   return {
     id: `trip_${trip.tripId}`,
+    type: 'trip',
     sourceType: 'trip',
     eventType: 'trip',
+    sourceId: trip.tripId,
     title: trip.title,
     description: trip.description || `رحلة إلى ${destStr}`,
+    startDate: trip.date,
+    endDate: trip.returnDate || trip.date,
     date: trip.date,
-    endDate: trip.returnDate,
     startTime: trip.departureTime || trip.time || '07:00',
     endTime: trip.returnTime || '21:00',
     location: `${destStr} (التجمع: ${trip.meetingPoint || 'الكنيسة'})`,
+    createdBy: 'admin',
+    createdAt: trip.createdAt || new Date().toISOString(),
     targetStages: trip.targetStages || 'all',
     targetAudienceLabel: getTargetAudienceLabel(trip.targetStages),
     capacity,
     bookedCount: booked,
     availableSeats: available,
     price: trip.price,
+    contactName: trip.coordinatorName,
+    contactPhone: trip.coordinatorWhatsapp,
     status: trip.status === 'canceled' ? 'cancelled' : trip.status === 'completed' ? 'completed' : 'upcoming',
     requiresRegistration: true,
+  };
+}
+
+export function mapGeneralEventToCalendarEvent(gen: GeneralEvent): CalendarEvent {
+  return {
+    id: `general_${gen.id}`,
+    type: 'general',
+    sourceType: 'general',
+    eventType: 'general',
+    sourceId: gen.id,
+    title: gen.title,
+    description: gen.description,
+    startDate: gen.startDate,
+    endDate: gen.endDate || gen.startDate,
+    date: gen.startDate,
+    startTime: gen.startTime || '18:00',
+    endTime: gen.endTime || '20:00',
+    location: gen.location || 'الكنيسة',
+    createdBy: gen.createdBy || 'admin',
+    createdAt: gen.createdAt || new Date().toISOString(),
+    updatedAt: gen.updatedAt,
+    targetStages: (gen.targetStages as any) || 'all',
+    targetAudienceLabel: getTargetAudienceLabel(gen.targetStages as any),
+    status: gen.status || 'upcoming',
+    requiresRegistration: false,
   };
 }
 
@@ -93,11 +124,16 @@ export function getTargetAudienceLabel(targetStages?: string[] | 'all'): string 
     return 'متاح لجميع مراحل الشباب';
   }
   const stageLabels: Record<string, string> = {
+    middle_school: 'إعدادي',
     prep: 'إعدادي',
+    secondary: 'ثانوي',
+    high_school: 'ثانوي',
     sec: 'ثانوي',
+    university: 'جامعيين',
     univ: 'جامعيين',
-    grad: 'خريجين',
     graduate: 'خريجين',
+    graduated: 'خريجين',
+    grad: 'خريجين',
   };
   return targetStages.map((s) => stageLabels[s] || s).join(' • ');
 }
@@ -121,15 +157,39 @@ export function isEventVisibleToUser(event: CalendarEvent, user: UserProfile | n
 }
 
 export function getUnifiedEvents(
-  meetings: Meeting[],
-  events: ChurchEvent[],
-  trips: Trip[],
-  user: UserProfile | null
+  meetings: Meeting[] = [],
+  events: ChurchEvent[] = [],
+  trips: Trip[] = [],
+  generalEventsOrUser?: GeneralEvent[] | UserProfile | null,
+  userProfile?: UserProfile | null
 ): CalendarEvent[] {
+  let generalEvents: GeneralEvent[] = [];
+  let user: UserProfile | null = null;
+
+  if (Array.isArray(generalEventsOrUser)) {
+    generalEvents = generalEventsOrUser;
+    user = userProfile || null;
+  } else if (
+    generalEventsOrUser &&
+    typeof generalEventsOrUser === 'object' &&
+    ('userId' in generalEventsOrUser || 'role' in generalEventsOrUser)
+  ) {
+    user = generalEventsOrUser as UserProfile;
+    generalEvents = [];
+  } else {
+    user = userProfile || null;
+  }
+
+  const safeMeetings = Array.isArray(meetings) ? meetings : [];
+  const safeEvents = Array.isArray(events) ? events : [];
+  const safeTrips = Array.isArray(trips) ? trips : [];
+  const safeGeneralEvents = Array.isArray(generalEvents) ? generalEvents : [];
+
   const unified: CalendarEvent[] = [
-    ...meetings.map(mapMeetingToCalendarEvent),
-    ...events.map(mapChurchEventToCalendarEvent),
-    ...trips.map(mapTripToCalendarEvent),
+    ...safeMeetings.map(mapMeetingToCalendarEvent),
+    ...safeEvents.map(mapChurchEventToCalendarEvent),
+    ...safeTrips.map(mapTripToCalendarEvent),
+    ...safeGeneralEvents.map(mapGeneralEventToCalendarEvent),
   ];
 
   // Filter based on user role and target audience
@@ -137,41 +197,45 @@ export function getUnifiedEvents(
 
   // Sort by date and startTime ascending
   return filtered.sort((a, b) => {
-    const dateComp = a.date.localeCompare(b.date);
+    const dateA = a.startDate || a.date;
+    const dateB = b.startDate || b.date;
+    const dateComp = dateA.localeCompare(dateB);
     if (dateComp !== 0) return dateComp;
-    return a.startTime.localeCompare(b.startTime);
+    return (a.startTime || '').localeCompare(b.startTime || '');
   });
 }
 
 export function getUpcomingEvents(events: CalendarEvent[], limit = 3): CalendarEvent[] {
   const todayStr = new Date().toISOString().slice(0, 10);
   return events
-    .filter((e) => e.status !== 'cancelled' && e.date >= todayStr)
+    .filter((e) => e.status !== 'cancelled' && (e.startDate || e.date) >= todayStr)
     .sort((a, b) => {
-      const dComp = a.date.localeCompare(b.date);
+      const dComp = (a.startDate || a.date).localeCompare(b.startDate || b.date);
       if (dComp !== 0) return dComp;
-      return a.startTime.localeCompare(b.startTime);
+      return (a.startTime || '').localeCompare(b.startTime || '');
     })
     .slice(0, limit);
 }
 
 export const EVENT_TYPE_METADATA: Record<
   UnifiedEventType,
-  { label: string; bgClass: string; textClass: string; borderClass: string; dotClass: string }
+  { label: string; bgClass: string; textClass: string; borderClass: string; dotClass: string; iconBg: string }
 > = {
   meeting: {
     label: 'اجتماع شباب',
-    bgClass: 'bg-blue-50 dark:bg-blue-950/40',
-    textClass: 'text-blue-700 dark:text-blue-300',
-    borderClass: 'border-blue-200 dark:border-blue-800',
-    dotClass: 'bg-blue-500',
+    bgClass: 'bg-indigo-50 dark:bg-indigo-950/40',
+    textClass: 'text-indigo-700 dark:text-indigo-300',
+    borderClass: 'border-indigo-200 dark:border-indigo-800',
+    dotClass: 'bg-indigo-500',
+    iconBg: 'bg-indigo-100 dark:bg-indigo-900/60',
   },
   activity: {
-    label: 'نشاط / مسابقة',
+    label: 'نشاط / يوم روحي',
     bgClass: 'bg-emerald-50 dark:bg-emerald-950/40',
     textClass: 'text-emerald-700 dark:text-emerald-300',
     borderClass: 'border-emerald-200 dark:border-emerald-800',
     dotClass: 'bg-emerald-500',
+    iconBg: 'bg-emerald-100 dark:bg-emerald-900/60',
   },
   trip: {
     label: 'رحلة كنسية',
@@ -179,26 +243,15 @@ export const EVENT_TYPE_METADATA: Record<
     textClass: 'text-amber-800 dark:text-amber-300',
     borderClass: 'border-amber-200 dark:border-amber-800',
     dotClass: 'bg-amber-500',
+    iconBg: 'bg-amber-100 dark:bg-amber-900/60',
   },
-  conference: {
-    label: 'مؤتمر شباب',
-    bgClass: 'bg-purple-50 dark:bg-purple-950/40',
-    textClass: 'text-purple-700 dark:text-purple-300',
-    borderClass: 'border-purple-200 dark:border-purple-800',
-    dotClass: 'bg-purple-500',
-  },
-  spiritual_day: {
-    label: 'يوم روحي / قداس',
-    bgClass: 'bg-rose-50 dark:bg-rose-950/40',
-    textClass: 'text-rose-700 dark:text-rose-300',
-    borderClass: 'border-rose-200 dark:border-rose-800',
-    dotClass: 'bg-rose-500',
-  },
-  important_event: {
-    label: 'حدث عام مهم',
-    bgClass: 'bg-indigo-50 dark:bg-indigo-950/40',
-    textClass: 'text-indigo-700 dark:text-indigo-300',
-    borderClass: 'border-indigo-200 dark:border-indigo-800',
-    dotClass: 'bg-indigo-500',
+  general: {
+    label: 'حدث عام بالتقويم',
+    bgClass: 'bg-sky-50 dark:bg-sky-950/40',
+    textClass: 'text-sky-700 dark:text-sky-300',
+    borderClass: 'border-sky-200 dark:border-sky-800',
+    dotClass: 'bg-sky-500',
+    iconBg: 'bg-sky-100 dark:bg-sky-900/60',
   },
 };
+

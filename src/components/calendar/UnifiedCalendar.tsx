@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { dataStore } from '../../services/dataStore';
 import { CalendarEvent, UnifiedEventType, CalendarViewMode } from '../../types/calendar';
@@ -21,7 +21,11 @@ import {
   CalendarDays,
   List,
   Sparkles,
-  Layers
+  Layers,
+  RefreshCw,
+  Trash2,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface UnifiedCalendarProps {
@@ -38,6 +42,18 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
   const { currentUser, role } = useAuth();
   const isAdmin = role === 'admin' || role === 'supervisor';
 
+  // Store synchronization version
+  const [storeVersion, setStoreVersion] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = dataStore.subscribe(() => {
+      setStoreVersion((v) => v + 1);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   // Navigation & View state
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
@@ -50,20 +66,36 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
   // Selected event for modal
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
-  // Create new event modal for Service Secretary
+  // Create new event modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newEventType, setNewEventType] = useState<UnifiedEventType>('activity');
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [newEventTime, setNewEventTime] = useState('18:00');
-  const [newEventLocation, setNewEventLocation] = useState('مبنى الخدمات الكنسية');
+  const [newEventEndTime, setNewEventEndTime] = useState('20:30');
+  const [newEventLocation, setNewEventLocation] = useState('كنيسة السيدة العذراء مريم بسدود');
+  const [newEventSpeaker, setNewEventSpeaker] = useState('أبونا مكسيموس يوسف');
   const [newEventDescription, setNewEventDescription] = useState('');
   const [newEventCapacity, setNewEventCapacity] = useState('50');
+  const [newEventTargetStage, setNewEventTargetStage] = useState<'all' | 'prep' | 'sec' | 'univ' | 'grad'>('all');
 
-  // Unified events extracted dynamically from existing collections
+  // Submission & Deletion status
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  // Unified events extracted dynamically from all actual collections
   const allEvents = useMemo(() => {
-    return getUnifiedEvents(dataStore.meetings, dataStore.events, dataStore.trips, currentUser);
-  }, [currentUser]);
+    return getUnifiedEvents(
+      dataStore.meetings,
+      dataStore.events,
+      dataStore.trips,
+      dataStore.generalEvents,
+      currentUser
+    );
+  }, [currentUser, storeVersion]);
 
   // Filtered events
   const filteredEvents = useMemo(() => {
@@ -160,59 +192,150 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEventTitle.trim()) return;
+    setSubmitError(null);
+    setSubmitSuccess(null);
 
-    if (newEventType === 'meeting') {
-      const newMeetingId = `meet_${Date.now()}`;
-      await dataStore.createMeeting({
-        meetingId: newMeetingId,
-        title: newEventTitle,
-        description: newEventDescription,
-        date: newEventDate,
-        startTime: newEventTime,
-        endTime: '21:00',
-        location: newEventLocation,
-        targetStages: 'all',
-        notes: newEventDescription,
-        status: 'scheduled',
-        qrSecretToken: Math.random().toString(36).substring(2, 10),
-        qrValidFrom: newEventDate,
-        qrValidUntil: newEventDate,
-        attendanceCount: 0,
-        pointsAwarded: 10,
-        createdBy: currentUser?.userId || 'admin',
-        createdAt: new Date().toISOString(),
-      });
-    } else {
-      const newEventId = `evt_${Date.now()}`;
-      const mappedType =
-        newEventType === 'spiritual_day'
-          ? 'spiritual_day'
-          : newEventType === 'conference'
-          ? 'conference'
-          : 'special_meeting';
-
-      await dataStore.createEvent({
-        eventId: newEventId,
-        title: newEventTitle,
-        type: mappedType,
-        date: newEventDate,
-        time: newEventTime,
-        location: newEventLocation,
-        description: newEventDescription,
-        price: 0,
-        capacity: parseInt(newEventCapacity) || 50,
-        registeredCount: 0,
-        registrationRequired: false,
-        status: 'upcoming',
-        createdAt: new Date().toISOString(),
-      });
+    if (!newEventTitle.trim()) {
+      setSubmitError('برجاء كتابة عنوان الحدث بشكل صحيح');
+      return;
+    }
+    if (!newEventDate) {
+      setSubmitError('برجاء تحديد تاريخ الحدث');
+      return;
     }
 
-    // Reset form
-    setNewEventTitle('');
-    setNewEventDescription('');
-    setShowCreateModal(false);
+    setIsSubmitting(true);
+
+    try {
+      const stageTargets = newEventTargetStage === 'all' ? 'all' : [newEventTargetStage];
+
+      if (newEventType === 'meeting') {
+        const newMeetingId = `meet_${Date.now()}`;
+        await dataStore.createMeeting({
+          meetingId: newMeetingId,
+          title: newEventTitle.trim(),
+          speaker: newEventSpeaker.trim() || 'أبونا مكسيموس يوسف',
+          description: newEventDescription.trim() || 'اجتماع شباب أسبوعي',
+          date: newEventDate,
+          startTime: newEventTime,
+          endTime: newEventEndTime || '21:00',
+          location: newEventLocation.trim() || 'كنيسة السيدة العذراء مريم بسدود',
+          targetStages: stageTargets as any,
+          notes: newEventDescription.trim(),
+          status: 'scheduled',
+          qrSecretToken: Math.random().toString(36).substring(2, 10),
+          qrValidFrom: newEventDate,
+          qrValidUntil: newEventDate,
+          attendanceCount: 0,
+          pointsAwarded: 10,
+          createdBy: currentUser?.userId || 'admin',
+          createdAt: new Date().toISOString(),
+        });
+      } else if (newEventType === 'trip') {
+        const newTripId = `trip_${Date.now()}`;
+        await dataStore.createTrip({
+          tripId: newTripId,
+          title: newEventTitle.trim(),
+          destination: newEventLocation.trim() || 'وجهة الرحلة',
+          destinations: [newEventLocation.trim() || 'وجهة الرحلة'],
+          description: newEventDescription.trim(),
+          date: newEventDate,
+          returnDate: newEventDate,
+          time: newEventTime,
+          departureTime: newEventTime,
+          returnTime: newEventEndTime || '21:00',
+          meetingPoint: 'فناء الكنيسة',
+          price: 0,
+          capacity: parseInt(newEventCapacity) || 50,
+          bookedSeatsCount: 0,
+          targetStages: stageTargets as any,
+          status: 'open',
+          coordinatorName: currentUser?.displayName || 'مسؤول الخدمة',
+          coordinatorWhatsapp: '',
+          createdAt: new Date().toISOString(),
+        });
+      } else if (newEventType === 'general' || newEventType === 'important_event') {
+        const newGenId = `gen_${Date.now()}`;
+        await dataStore.createGeneralEvent({
+          id: newGenId,
+          type: 'general',
+          title: newEventTitle.trim(),
+          description: newEventDescription.trim(),
+          startDate: newEventDate,
+          endDate: newEventDate,
+          startTime: newEventTime,
+          endTime: newEventEndTime || '20:00',
+          location: newEventLocation.trim() || 'الكنيسة',
+          targetStages: stageTargets as any,
+          status: 'upcoming',
+          createdBy: currentUser?.userId || 'admin',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        const newEventId = `evt_${Date.now()}`;
+        const mappedType =
+          newEventType === 'spiritual_day'
+            ? 'spiritual_day'
+            : newEventType === 'conference'
+            ? 'conference'
+            : 'special_meeting';
+
+        await dataStore.createEvent({
+          eventId: newEventId,
+          title: newEventTitle.trim(),
+          type: mappedType,
+          date: newEventDate,
+          time: newEventTime,
+          location: newEventLocation.trim() || 'الكنيسة',
+          description: newEventDescription.trim(),
+          speaker: newEventSpeaker.trim() || undefined,
+          targetStages: stageTargets as any,
+          price: 0,
+          capacity: parseInt(newEventCapacity) || 50,
+          registeredCount: 0,
+          registrationRequired: false,
+          status: 'upcoming',
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      setSubmitSuccess('تم حفظ الحدث بنجاح وإدراجه في التقويم!');
+      setTimeout(() => {
+        setNewEventTitle('');
+        setNewEventDescription('');
+        setSubmitSuccess(null);
+        setShowCreateModal(false);
+      }, 800);
+    } catch (err: any) {
+      console.error('Error creating event:', err);
+      setSubmitError(err?.message || 'فشل حفظ الحدث. برجاء التحقق من الاتصال والمحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteEvent = async (event: CalendarEvent) => {
+    if (!isAdmin) return;
+    setIsDeleting(true);
+    try {
+      if (event.sourceType === 'meeting') {
+        await dataStore.deleteMeeting(event.sourceId);
+      } else if (event.sourceType === 'event') {
+        await dataStore.deleteEvent(event.sourceId);
+      } else if (event.sourceType === 'trip') {
+        await dataStore.deleteTrip(event.sourceId);
+      } else if (event.sourceType === 'general') {
+        await dataStore.deleteGeneralEvent(event.sourceId);
+      }
+      setSelectedEvent(null);
+      setShowDeleteConfirm(false);
+    } catch (err: any) {
+      console.error('Error deleting event:', err);
+      alert(`فشل حذف الحدث: ${err?.message || 'حدث خطأ غير متوقع'}`);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const dayNamesArabic = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
@@ -308,6 +431,27 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
           )}
         </div>
       </div>
+
+      {/* Cloud Sync Status Banner */}
+      {dataStore.syncError && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-2xl p-4 flex items-center justify-between gap-3 text-amber-800 dark:text-amber-200 text-xs">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>
+              <strong>تنبيه مزامنة:</strong> تعذر الاتصال اللحظي بقاعدة البيانات ({dataStore.syncError}). يتم عرض البيانات المتاحة محلياً.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => dataStore.retrySync()}
+            disabled={dataStore.isSyncing}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-amber-200/80 dark:bg-amber-900/60 hover:bg-amber-300 font-bold transition shrink-0"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${dataStore.isSyncing ? 'animate-spin' : ''}`} />
+            <span>إعادة المزامنة</span>
+          </button>
+        </div>
+      )}
 
       {/* Filter Panel (Collapsible) */}
       {showFilters && (
@@ -752,6 +896,47 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
               </div>
             </div>
 
+            {/* Admin Delete Action */}
+            {isAdmin && selectedEvent && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-700">
+                {showDeleteConfirm ? (
+                  <div className="p-3 bg-rose-50 dark:bg-rose-950/40 rounded-2xl border border-rose-200 dark:border-rose-900/60 space-y-2">
+                    <p className="text-xs text-rose-700 dark:text-rose-300 font-bold">
+                      هل أنت متأكد من حذف هذا الحدث نهائياً من التقويم وقاعدة البيانات؟
+                    </p>
+                    <div className="flex items-center gap-2 justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteConfirm(false)}
+                        disabled={isDeleting}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 transition"
+                      >
+                        إلغاء
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteEvent(selectedEvent)}
+                        disabled={isDeleting}
+                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 flex items-center gap-1 transition"
+                      >
+                        {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        <span>تأكيد الحذف</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-bold py-1.5 px-3 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/30 transition w-full justify-center"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>حذف الحدث من قاعدة البيانات</span>
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Quick Actions Footer */}
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-3">
               <a
@@ -766,7 +951,10 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
 
               <button
                 type="button"
-                onClick={() => setSelectedEvent(null)}
+                onClick={() => {
+                  setSelectedEvent(null);
+                  setShowDeleteConfirm(false);
+                }}
                 className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 transition"
               >
                 إغلاق
@@ -779,17 +967,21 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
       {/* CREATE EVENT MODAL (Service Secretary Only) */}
       {showCreateModal && isAdmin && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-2xl relative space-y-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-lg w-full p-5 sm:p-6 border border-slate-200 dark:border-slate-700 shadow-2xl relative space-y-4 max-h-[90vh] overflow-y-auto">
             <button
               type="button"
-              onClick={() => setShowCreateModal(false)}
+              onClick={() => {
+                setShowCreateModal(false);
+                setSubmitError(null);
+                setSubmitSuccess(null);
+              }}
               className="absolute left-4 top-4 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 flex items-center justify-center">
                 <CalendarIcon className="w-5 h-5" />
               </div>
               <div>
@@ -797,110 +989,186 @@ export const UnifiedCalendar: React.FC<UnifiedCalendarProps> = ({
                   إضافة حدث جديد للتقويم
                 </h3>
                 <p className="text-xs text-slate-400">
-                  سيتم حفظه وإتاحته مباشرة للمخدومين والخدام
+                  سيتم حفظه في قاعدة البيانات ويظهر مباشرة للخدام والمخدومين
                 </p>
               </div>
             </div>
 
-            <form onSubmit={handleCreateEvent} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                  نوع الحدث
-                </label>
-                <select
-                  value={newEventType}
-                  onChange={(e) => setNewEventType(e.target.value as UnifiedEventType)}
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold"
-                >
-                  <option value="meeting">اجتماع شباب أسبوعي</option>
-                  <option value="activity">نشاط / مسابقة</option>
-                  <option value="spiritual_day">يوم روحي / قداس</option>
-                  <option value="conference">مؤتمر شباب</option>
-                  <option value="important_event">حدث عام مهم</option>
-                </select>
+            {/* Error Message Box */}
+            {submitError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 rounded-2xl flex items-start gap-2 text-xs text-rose-700 dark:text-rose-300">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block font-bold">تعذر حفظ الحدث:</strong>
+                  <span>{submitError}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Success Message Box */}
+            {submitSuccess && (
+              <div className="p-3 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 rounded-2xl flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="font-bold">{submitSuccess}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateEvent} className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    نوع الحدث
+                  </label>
+                  <select
+                    value={newEventType}
+                    onChange={(e) => setNewEventType(e.target.value as UnifiedEventType)}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="meeting">اجتماع شباب أسبوعي</option>
+                    <option value="activity">نشاط / مسابقة</option>
+                    <option value="spiritual_day">يوم روحي / قداس</option>
+                    <option value="conference">مؤتمر شباب</option>
+                    <option value="trip">رحلة شبابية</option>
+                    <option value="general">حدث عام / مناسبة كنسية</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    الفئة والمرحلة المستهدفة
+                  </label>
+                  <select
+                    value={newEventTargetStage}
+                    onChange={(e) => setNewEventTargetStage(e.target.value as any)}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-slate-800 dark:text-slate-200"
+                  >
+                    <option value="all">متاح لجميع مراحل الشباب</option>
+                    <option value="prep">مرحلة إعدادي فقط</option>
+                    <option value="sec">مرحلة ثانوي فقط</option>
+                    <option value="univ">مرحلة جامعيين فقط</option>
+                    <option value="grad">مرحلة خريجين فقط</option>
+                  </select>
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                  عنوان الحدث
+                  عنوان الحدث *
                 </label>
                 <input
                   type="text"
                   required
                   value={newEventTitle}
                   onChange={(e) => setNewEventTitle(e.target.value)}
-                  placeholder="مثال: لقاء روحي مفتوح، نهضة الشباب..."
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                  placeholder="مثال: اجتماع الشباب الأسبوعي، نهضة السيدة العذراء..."
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                    التاريخ
+                    التاريخ *
                   </label>
                   <input
                     type="date"
                     required
                     value={newEventDate}
                     onChange={(e) => setNewEventDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                    التوقيت
+                    وقت البدء *
                   </label>
                   <input
                     type="time"
                     required
                     value={newEventTime}
                     onChange={(e) => setNewEventTime(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    وقت الانتهاء
+                  </label>
+                  <input
+                    type="time"
+                    value={newEventEndTime}
+                    onChange={(e) => setNewEventEndTime(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    الموقع / القاعة
+                  </label>
+                  <input
+                    type="text"
+                    value={newEventLocation}
+                    onChange={(e) => setNewEventLocation(e.target.value)}
+                    placeholder="مثال: قاعة الكنيسة الكبرى، مسرح الخدمات..."
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
+                    المتكلم / المسؤول
+                  </label>
+                  <input
+                    type="text"
+                    value={newEventSpeaker}
+                    onChange={(e) => setNewEventSpeaker(e.target.value)}
+                    placeholder="مثال: أبونا مكسيموس يوسف..."
+                    className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                   />
                 </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                  الموقع
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={newEventLocation}
-                  onChange={(e) => setNewEventLocation(e.target.value)}
-                  placeholder="مثال: القاعة الكبرى، مسرح الكنيسة..."
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">
-                  الوصف / تفاصيل البرنامج
+                  الوصف والملاحظات
                 </label>
                 <textarea
                   rows={2}
                   value={newEventDescription}
                   onChange={(e) => setNewEventDescription(e.target.value)}
-                  placeholder="ملاحظات أو تفاصيل إضافية حول الحدث..."
-                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                  placeholder="موضوع اللقاء أو الكلمة الروحية، ملاحظات الحضور..."
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
                 />
               </div>
 
               <div className="pt-2 flex items-center justify-end gap-2">
                 <button
                   type="button"
+                  disabled={isSubmitting}
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
                 >
                   إلغاء
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
+                  disabled={isSubmitting}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 transition shadow-sm disabled:opacity-50"
                 >
-                  حفظ الحدث
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>جاري الحفظ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      <span>حفظ وإدراج في التقويم</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

@@ -61,12 +61,85 @@
         "timestamp": { "type": "string" }
       },
       "required": ["redemptionId", "userId", "boxId", "rewardId", "timestamp"]
+    },
+    "GeneralEvent": {
+      "title": "GeneralEvent",
+      "description": "General calendar event created directly from Unified Calendar",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "startDate": { "type": "string" },
+        "endDate": { "type": "string" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "location": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "type", "title", "startDate", "startTime", "location", "createdBy", "createdAt"]
+    },
+    "Meeting": {
+      "title": "Meeting",
+      "description": "Weekly youth meeting record",
+      "type": "object",
+      "properties": {
+        "meetingId": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "startTime": { "type": "string" },
+        "location": { "type": "string" }
+      },
+      "required": ["meetingId", "title", "date", "startTime", "location"]
+    },
+    "ChurchEvent": {
+      "title": "ChurchEvent",
+      "description": "Activity, spiritual day, or event record",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "location": { "type": "string" }
+      },
+      "required": ["eventId", "title", "date", "location"]
+    },
+    "Trip": {
+      "title": "Trip",
+      "description": "Church trip record",
+      "type": "object",
+      "properties": {
+        "tripId": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "destination": { "type": "string" }
+      },
+      "required": ["tripId", "title", "date"]
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "Collection of all youth, servants, and priests in the meeting"
+    },
+    "/generalEvents/{eventId}": {
+      "schema": "GeneralEvent",
+      "description": "Collection of general events created in Unified Calendar"
+    },
+    "/meetings/{meetingId}": {
+      "schema": "Meeting",
+      "description": "Collection of youth meetings"
+    },
+    "/events/{eventId}": {
+      "schema": "ChurchEvent",
+      "description": "Collection of church activities and events"
+    },
+    "/trips/{tripId}": {
+      "schema": "Trip",
+      "description": "Collection of church trips"
     },
     "/vouchers/{voucherId}": {
       "schema": "Voucher",

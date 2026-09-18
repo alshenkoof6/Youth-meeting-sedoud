@@ -364,3 +364,22 @@ export interface AuditLog {
   details?: string | Record<string, any>;
   metadata?: Record<string, any>;
 }
+
+export interface GeneralEvent {
+  id: string;
+  type: 'general';
+  title: string;
+  description?: string;
+  startDate: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime?: string; // HH:mm
+  location: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt?: string;
+  sourceId?: string;
+  status?: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
+  targetStages?: EducationStage[] | 'all';
+}
+
